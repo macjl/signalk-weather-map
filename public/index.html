@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Weather Map — SignalK</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; background: #1a2535; }
+    #map { height: 100%; width: 100%; }
+
+    #panel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.93);
+      backdrop-filter: blur(4px);
+      border-radius: 10px;
+      padding: 12px 14px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      min-width: 220px;
+    }
+    #panel h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #1a2535;
+      margin-bottom: 10px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    /* Forecast slider */
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #888;
+      margin-bottom: 5px;
+    }
+    #time-display {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a2535;
+      text-align: center;
+      margin-bottom: 4px;
+      min-height: 20px;
+    }
+    #time-secondary {
+      font-size: 11px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    input[type=range] {
+      width: 100%;
+      accent-color: #2566c8;
+      cursor: pointer;
+      margin-bottom: 10px;
+    }
+
+    .divider { border: none; border-top: 1px solid #e8e8e8; margin: 8px 0; }
+
+    /* Source row */
+    .ctrl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .ctrl-row label { font-size: 11px; color: #666; width: 52px; flex-shrink: 0; }
+    .ctrl-row select {
+      font-size: 12px;
+      border: 1px solid #d0d0d0;
+      border-radius: 5px;
+      padding: 3px 5px;
+      flex: 1;
+      background: #fff;
+      color: #222;
+    }
+    #grid-info {
+      font-size: 11px;
+      color: #999;
+      flex: 1;
+      text-align: right;
+    }
+
+    #btn-set-default {
+      width: 100%;
+      margin-top: 4px;
+      padding: 4px;
+      font-size: 11px;
+      border: 1px solid #f0a020;
+      border-radius: 5px;
+      background: #fff8ee;
+      color: #b07010;
+      cursor: pointer;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    #btn-set-default:hover { background: #f0a020; color: #fff; }
+    #btn-set-default:disabled { opacity: 0.4; cursor: default; }
+
+    #btn-refresh {
+      width: 100%;
+      margin-top: 4px;
+      padding: 5px;
+      font-size: 12px;
+      border: none;
+      border-radius: 5px;
+      background: #2566c8;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    #btn-refresh:hover { background: #1a4fa0; }
+
+    /* Layer selector */
+    #layer-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px;
+      margin-bottom: 10px;
+    }
+    .layer-btn {
+      padding: 5px 3px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid #d0d0d0;
+      border-radius: 5px;
+      background: #f5f5f5;
+      color: #555;
+      cursor: pointer;
+      letter-spacing: 0.01em;
+    }
+    .layer-btn:hover { background: #e8e8e8; }
+    .layer-btn.active { background: #1a3a6b; color: #fff; border-color: #1a3a6b; }
+
+    #legend {
+      position: absolute;
+      bottom: 28px;
+      left: 10px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.88);
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 11px;
+      color: #333;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      line-height: 1.65;
+    }
+    #legend b { display: block; margin-bottom: 3px; font-size: 11px; color: #1a2535; }
+
+    #status {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1001;
+      background: rgba(20,40,80,0.82);
+      color: #fff;
+      border-radius: 20px;
+      padding: 5px 18px;
+      font-size: 12px;
+      display: none;
+      white-space: nowrap;
+    }
+
+    .wind-barb-icon { background: none !important; border: none !important; }
+    .leaflet-tooltip { font-size: 12px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="panel">
+  <h3>⚓ Weather Map</h3>
+
+  <div id="layer-selector">
+    <button class="layer-btn active" data-layer="wind">Vent</button>
+    <button class="layer-btn" data-layer="temp">Température</button>
+    <button class="layer-btn" data-layer="cloud">Nébulosité</button>
+    <button class="layer-btn" data-layer="precip">Précipitations</button>
+    <button class="layer-btn" data-layer="gust" style="grid-column:1/-1">Rafales</button>
+  </div>
+
+  <div class="section-label">Forecast</div>
+  <div id="time-display">—</div>
+  <div id="time-secondary">&nbsp;</div>
+  <input type="range" id="slider-time" min="0" max="0" value="0" disabled>
+
+  <hr class="divider">
+
+  <div class="ctrl-row">
+    <label>Source</label>
+    <select id="sel-source"><option value="">All providers</option></select>
+  </div>
+  <button id="btn-set-default" style="display:none">Définir par défaut</button>
+  <div class="ctrl-row" style="margin-top:6px">
+    <label>Grille</label>
+    <span id="grid-info">—</span>
+  </div>
+
+  <button id="btn-refresh">Rafraîchir</button>
+</div>
+
+<div id="legend"><span id="legend-text"></span></div>
+
+<div id="status"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+'use strict'
+
+// ── Config ────────────────────────────────────────────────────────────────────
+const SK        = window.location.origin
+const CACHE_TTL = 30 * 60 * 1000
+const CONC      = 15
+const LS_PFX    = 'skwx2_'
+
+// ── State ─────────────────────────────────────────────────────────────────────
+const memCache   = new Map()
+const barbLayers = new Map()
+const rainLayers  = new Map()   // gouttes de pluie (layer cloud uniquement)
+const labelLayers = new Map()   // étiquettes texte (layer temp)
+let   allTimes   = []
+let   curTimeIdx = 0
+let   abortCtrl  = null
+let   defaultProviderId = null   // provider actuellement par défaut côté SignalK
+let   currentStep  = null        // pas de grille du dernier rendu
+let   currentLayer = 'wind'      // 'wind' | 'temp' | 'cloud'
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([48.5, 2.5], 6)
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 18,
+}).addTo(map)
+
+const barbGroup    = L.layerGroup().addTo(map)
+const tileRenderer = L.canvas({ padding: 0.5 })
+
+// ── Cache ─────────────────────────────────────────────────────────────────────
+function lsGet(key) {
+  try {
+    const raw = localStorage.getItem(LS_PFX + key)
+    if (!raw) return null
+    const e = JSON.parse(raw)
+    if (Date.now() - e.ts > CACHE_TTL) { localStorage.removeItem(LS_PFX + key); return null }
+    return e
+  } catch { return null }
+}
+function lsSet(key, data) {
+  try { localStorage.setItem(LS_PFX + key, JSON.stringify({ ts: Date.now(), data })) } catch {}
+}
+function purgeLs() {
+  for (const k of Object.keys(localStorage)) {
+    if (!k.startsWith(LS_PFX)) continue
+    try {
+      const e = JSON.parse(localStorage.getItem(k))
+      if (Date.now() - e.ts > CACHE_TTL) localStorage.removeItem(k)
+    } catch { localStorage.removeItem(k) }
+  }
+}
+
+function cacheKey(lat, lon) {
+  const provider = document.getElementById('sel-source').value
+  return `${provider}|${lat.toFixed(2)},${lon.toFixed(2)}`
+}
+
+function getCached(key) {
+  const m = memCache.get(key)
+  if (m && Date.now() - m.ts < CACHE_TTL) return m.data
+  memCache.delete(key)
+  const s = lsGet(key)
+  if (s) { memCache.set(key, { ts: s.ts, data: s.data }); return s.data }
+  return null
+}
+function setCached(key, data) {
+  memCache.set(key, { ts: Date.now(), data })
+  lsSet(key, data)
+}
+
+// ── Auto grid step ────────────────────────────────────────────────────────────
+// Target ~40px between barbs. Steps in degrees.
+const GRID_STEPS = [0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
+
+function autoStep() {
+  const bounds = map.getBounds()
+  const size   = map.getSize()
+  const degPerPx = (bounds.getEast() - bounds.getWest()) / size.x
+  const raw = degPerPx * 40
+  return GRID_STEPS.find(s => s >= raw) ?? 10
+}
+
+// ── Wind barb SVG ─────────────────────────────────────────────────────────────
+function kt(mps) { return mps * 1.94384 }
+
+function barbSVG(speedMps, dirRad) {
+  const knots = kt(speedMps)
+  const S = 56, C = S / 2, STAFF = 36, BL = 13, SP = 7
+  const COL = '#1a3a6b'
+
+  if (knots < 3) {
+    return `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">
+      <circle cx="${C}" cy="${C}" r="5" fill="none" stroke="${COL}" stroke-width="2"/>
+    </svg>`
+  }
+
+  let y = C - STAFF / 2
+  let spd = Math.round(knots / 5) * 5
+  const parts = [`<line x1="${C}" y1="${C-STAFF/2}" x2="${C}" y2="${C+STAFF/2}" stroke="${COL}" stroke-width="2"/>`]
+
+  while (spd >= 50) {
+    parts.push(`<polygon points="${C},${y} ${C+BL},${y+3.5} ${C},${y+7}" fill="${COL}"/>`)
+    y += 9; spd -= 50
+  }
+  while (spd >= 10) {
+    parts.push(`<line x1="${C}" y1="${y}" x2="${C+BL}" y2="${y-5}" stroke="${COL}" stroke-width="2"/>`)
+    y += SP; spd -= 10
+  }
+  if (spd >= 5) {
+    parts.push(`<line x1="${C}" y1="${y}" x2="${C+BL*0.55}" y2="${y-2.5}" stroke="${COL}" stroke-width="2"/>`)
+  }
+
+  const deg = (dirRad * 180 / Math.PI).toFixed(1)
+  return `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}"
+    style="transform:rotate(${deg}deg);transform-origin:${C}px ${C}px">${parts.join('')}</svg>`
+}
+
+// ── Temperature renderer ──────────────────────────────────────────────────────
+function tempColor(t) {
+  // bleu (-20°) → cyan (0°) → vert (15°) → jaune (25°) → rouge (40°)
+  function lerp(a, b, x) {
+    const ah = parseInt(a.slice(1,3),16), bh = parseInt(b.slice(1,3),16)
+    const as = parseInt(a.slice(3,5),16), bs = parseInt(b.slice(3,5),16)
+    const al = parseInt(a.slice(5,7),16), bl = parseInt(b.slice(5,7),16)
+    const r = Math.round(ah + (bh-ah)*x), g = Math.round(as + (bs-as)*x), bl2 = Math.round(al + (bl-al)*x)
+    return `rgb(${r},${g},${bl2})`
+  }
+  if (t < -20) return 'rgb(0,0,200)'
+  if (t <   0) return lerp('#0044ff','#00ccee', (t+20)/20)
+  if (t <  15) return lerp('#00ccee','#22aa44', t/15)
+  if (t <  25) return lerp('#22aa44','#ffcc00', (t-15)/10)
+  if (t <  35) return lerp('#ffcc00','#ff3300', (t-25)/10)
+  return 'rgb(200,0,0)'
+}
+
+// ── Precip color scale ────────────────────────────────────────────────────────
+function precipStyle(mm) {
+  if (mm < 0.1) return { fillOpacity: 0, fillColor: '#fff', stroke: false }
+  // bleu clair → bleu → violet → rouge selon intensité
+  if (mm <  1)  return { fillColor: '#90caf9', fillOpacity: 0.30, stroke: false }
+  if (mm <  5)  return { fillColor: '#1e88e5', fillOpacity: 0.50, stroke: false }
+  if (mm < 15)  return { fillColor: '#5e35b1', fillOpacity: 0.60, stroke: false }
+  if (mm < 30)  return { fillColor: '#e53935', fillOpacity: 0.70, stroke: false }
+  return              { fillColor: '#b71c1c', fillOpacity: 0.80, stroke: false }
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────────
+async function fetchPoint(lat, lon, source, signal) {
+  const key = cacheKey(lat, lon)
+  const hit = getCached(key)
+  if (hit) return { key, lat, lon, data: hit }
+
+  const url = new URL(`${SK}/signalk/v2/api/weather/forecasts/point`)
+  url.searchParams.set('lat', lat.toFixed(4))
+  url.searchParams.set('lon', lon.toFixed(4))
+  if (source) url.searchParams.set('provider', source)   // ?provider=<pluginId>
+
+  const r = await fetch(url.toString(), { signal })
+  if (!r.ok) throw new Error(r.status)
+  const data = await r.json()
+  setCached(key, data)
+  return { key, lat, lon, data }
+}
+
+async function fetchBatch(points, source, onResult) {
+  let i = 0, done = 0
+  const total = points.length
+  if (abortCtrl) abortCtrl.abort()
+  abortCtrl = new AbortController()
+  const sig = abortCtrl.signal
+
+  async function worker() {
+    while (i < points.length && !sig.aborted) {
+      const [lat, lon] = points[i++]
+      try {
+        const res = await fetchPoint(lat, lon, source, sig)
+        if (!sig.aborted) { onResult(res); done++; showStatus(`Chargement… ${done}/${total}`) }
+      } catch { if (!sig.aborted) done++ }
+    }
+  }
+
+  await Promise.all(Array.from({ length: CONC }, worker))
+  if (!sig.aborted) showStatus(null)
+}
+
+// ── Grid ──────────────────────────────────────────────────────────────────────
+function computeGrid(bounds, step) {
+  const S = Math.floor(bounds.getSouth() / step) * step
+  const N = Math.ceil(bounds.getNorth() / step) * step
+  const W = Math.floor(bounds.getWest() / step) * step
+  const E = Math.ceil(bounds.getEast() / step) * step
+  const pts = []
+  for (let lat = S; lat <= N + 1e-9; lat = Math.round((lat + step) * 1e6) / 1e6) {
+    if (lat < -90 || lat > 90) continue
+    for (let lon = W; lon <= E + 1e-9; lon = Math.round((lon + step) * 1e6) / 1e6) {
+      pts.push([lat, lon])
+    }
+  }
+  return pts
+}
+
+// ── Barb rendering ────────────────────────────────────────────────────────────
+function curTime() { return allTimes[curTimeIdx] ?? null }
+
+function pickForecast(data) {
+  if (!data || data.length === 0) return null
+  const t = curTime()
+  if (!t) return data[0]
+  let best = null, bestDiff = Infinity
+  for (const f of data) {
+    const d = Math.abs(new Date(f.date) - new Date(t))
+    if (d < bestDiff) { bestDiff = d; best = f }
+  }
+  return best
+}
+
+// Dispatcher — appelle le bon renderer selon currentLayer
+function renderMarker(key, lat, lon, data) {
+  const f = pickForecast(data)
+  if (!f) { removeMarker(key); return }
+  const tip  = buildTooltip(lat, lon, f)
+  const half = (currentStep || 0.25) / 2
+  const cellBounds = [[lat - half, lon - half], [lat + half, lon + half]]
+
+  if (currentLayer === 'wind') {
+    if (!f.wind) { removeMarker(key); return }
+    const icon = L.divIcon({ html: barbSVG(f.wind.speedTrue ?? 0, f.wind.directionTrue ?? 0),
+      className: 'wind-barb-icon', iconSize: [56, 56], iconAnchor: [28, 28] })
+    if (barbLayers.has(key)) {
+      barbLayers.get(key).setIcon(icon).unbindTooltip().bindTooltip(tip, { direction: 'top', offset: [0, -10] })
+    } else {
+      const m = L.marker([lat, lon], { icon }).addTo(barbGroup)
+      m.bindTooltip(tip, { direction: 'top', offset: [0, -10] })
+      barbLayers.set(key, m)
+    }
+
+  } else if (currentLayer === 'temp') {
+    const t = f.outside?.temperature
+    if (t == null) { removeMarker(key); return }
+    const tempC = t - 273.15
+    const style = { fillColor: tempColor(tempC), fillOpacity: 0.5, stroke: false }
+    if (barbLayers.has(key)) {
+      barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
+    } else {
+      const r = L.rectangle(cellBounds, { ...style, renderer: tileRenderer }).addTo(barbGroup)
+      r.bindTooltip(tip)
+      barbLayers.set(key, r)
+    }
+    // Étiquette texte centrée sur la cellule
+    const lbl = (tempC >= 0 ? '+' : '') + tempC.toFixed(1) + '°'
+    const lblHtml = `<div style="font-size:10px;font-weight:700;color:#fff;
+      text-shadow:0 0 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);
+      white-space:nowrap;pointer-events:none;line-height:1">${lbl}</div>`
+    const lblIcon = L.divIcon({ html: lblHtml, className: 'wind-barb-icon', iconSize: [40, 14], iconAnchor: [20, 7] })
+    if (labelLayers.has(key)) {
+      labelLayers.get(key).setIcon(lblIcon)
+    } else {
+      labelLayers.set(key, L.marker([lat, lon], { icon: lblIcon, interactive: false }).addTo(barbGroup))
+    }
+
+  } else if (currentLayer === 'cloud') {
+    const cloud = f.outside?.cloudCover ?? 0
+    const style = { fillColor: '#505050', fillOpacity: cloud * 0.6, stroke: false }
+    if (barbLayers.has(key)) {
+      barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
+    } else {
+      const r = L.rectangle(cellBounds, { ...style, renderer: tileRenderer }).addTo(barbGroup)
+      r.bindTooltip(tip)
+      barbLayers.set(key, r)
+    }
+
+  } else if (currentLayer === 'precip') {
+    const mm    = (f.outside?.precipitationVolume ?? 0) * 1000
+    const style = precipStyle(mm)
+    if (barbLayers.has(key)) {
+      barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
+    } else {
+      const r = L.rectangle(cellBounds, { ...style, renderer: tileRenderer }).addTo(barbGroup)
+      r.bindTooltip(tip)
+      barbLayers.set(key, r)
+    }
+
+  } else if (currentLayer === 'gust') {
+    const gust = f.wind?.gust
+    if (gust == null) { removeMarker(key); return }
+    const icon = L.divIcon({ html: barbSVG(gust, f.wind.directionTrue ?? 0),
+      className: 'wind-barb-icon', iconSize: [56, 56], iconAnchor: [28, 28] })
+    if (barbLayers.has(key)) {
+      barbLayers.get(key).setIcon(icon).unbindTooltip().bindTooltip(tip, { direction: 'top', offset: [0, -10] })
+    } else {
+      const m = L.marker([lat, lon], { icon }).addTo(barbGroup)
+      m.bindTooltip(tip, { direction: 'top', offset: [0, -10] })
+      barbLayers.set(key, m)
+    }
+  }
+}
+
+function removeMarker(key) {
+  const m = barbLayers.get(key)
+  if (m) { barbGroup.removeLayer(m); barbLayers.delete(key) }
+  const r = rainLayers.get(key)
+  if (r) { barbGroup.removeLayer(r); rainLayers.delete(key) }
+  const l = labelLayers.get(key)
+  if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
+}
+const removeBarb = removeMarker
+
+function buildTooltip(lat, lon, f) {
+  const d      = new Date(f.date)
+  const speed  = f.wind?.speedTrue
+  const dir    = f.wind?.directionTrue
+  const gust   = f.wind?.gust
+  const temp   = f.outside?.temperature
+  const pres   = f.outside?.pressure
+  const humid  = f.outside?.relativeHumidity
+  const cloud  = f.outside?.cloudCover
+  const precip = f.outside?.precipitationVolume   // en mètres
+
+  let html = `<b>${lat.toFixed(2)}°, ${lon.toFixed(2)}°</b><br>${fmtUtc(d)}<hr style="margin:3px 0">`
+  if (speed != null && dir != null)
+    html += `Vent&nbsp;: <b>${kt(speed).toFixed(0)} nœuds</b> de ${(dir * 180 / Math.PI).toFixed(0)}°<br>`
+  if (gust  != null)
+    html += `Rafales&nbsp;: <b>${kt(gust).toFixed(0)} nœuds</b><br>`
+  if (temp  != null) html += `Temp&nbsp;: ${(temp - 273.15).toFixed(1)}°C &nbsp; `
+  if (pres  != null) html += `MSLP&nbsp;: ${(pres / 100).toFixed(0)} hPa<br>`
+  if (humid != null) html += `Humidité&nbsp;: ${(humid * 100).toFixed(0)}% &nbsp; `
+  if (cloud != null) html += `Nuages&nbsp;: ${(cloud * 100).toFixed(0)}%<br>`
+  if (precip != null) html += `Précip.&nbsp;: ${(precip * 1000).toFixed(1)} mm`
+  return html
+}
+
+// ── Time slider ───────────────────────────────────────────────────────────────
+function fmtUtc(d) {
+  const dd  = d.getUTCDate().toString().padStart(2,'0')
+  const mm  = (d.getUTCMonth()+1).toString().padStart(2,'0')
+  const hh  = d.getUTCHours().toString().padStart(2,'0')
+  return `${dd}/${mm} ${hh}:00 UTC`
+}
+
+function fmtRelative(iso) {
+  const diff = (new Date(iso) - Date.now()) / 3600_000
+  if (Math.abs(diff) < 1) return 'maintenant'
+  if (diff < 0) return `il y a ${Math.round(-diff)}h`
+  return `dans ${Math.round(diff)}h`
+}
+
+function updateSliderUI() {
+  const slider = document.getElementById('slider-time')
+  const disp   = document.getElementById('time-display')
+  const sec    = document.getElementById('time-secondary')
+
+  if (allTimes.length === 0) {
+    disp.textContent = '—'
+    sec.textContent  = ''
+    slider.disabled  = true
+    return
+  }
+
+  slider.disabled = false
+  slider.min   = 0
+  slider.max   = allTimes.length - 1
+  slider.value = curTimeIdx
+
+  const iso = allTimes[curTimeIdx]
+  disp.textContent = fmtUtc(new Date(iso))
+  sec.textContent  = fmtRelative(iso)
+}
+
+function ingestTimes(data) {
+  const set = new Set(allTimes)
+  for (const f of data) if (f.date) set.add(f.date)
+  if (set.size === allTimes.length) return false
+  allTimes = Array.from(set).sort()
+
+  // Keep curTimeIdx pointing at the same ISO string if possible
+  // Default: first future time
+  if (allTimes.length > 0 && curTimeIdx === 0) {
+    const now = Date.now()
+    const futureIdx = allTimes.findIndex(t => new Date(t) >= now)
+    curTimeIdx = futureIdx >= 0 ? futureIdx : 0
+  }
+
+  updateSliderUI()
+  return true
+}
+
+// ── Source discovery ──────────────────────────────────────────────────────────
+// Uses GET /signalk/v2/api/weather/_providers — only lists providers that are
+// actually started and registered. Disabled plugins won't appear here.
+async function discoverSources() {
+  try {
+    const r = await fetch(`${SK}/signalk/v2/api/weather/_providers`)
+    if (!r.ok) return
+    const providers = await r.json()   // { pluginId: { name, isDefault } }
+
+    const sel = document.getElementById('sel-source')
+    sel.innerHTML = ''
+    defaultProviderId = null
+
+    for (const [id, info] of Object.entries(providers)) {
+      const opt = document.createElement('option')
+      opt.value = id
+      opt.textContent = info.name + (info.isDefault ? ' ★' : '')
+      if (info.isDefault) { opt.selected = true; defaultProviderId = id }
+      sel.appendChild(opt)
+    }
+
+    updateDefaultBtn()
+    refresh()
+  } catch {}
+}
+
+function updateDefaultBtn() {
+  const btn = document.getElementById('btn-set-default')
+  const selected = document.getElementById('sel-source').value
+  if (!selected || selected === defaultProviderId) {
+    btn.style.display = 'none'
+  } else {
+    btn.style.display = 'block'
+    const name = document.getElementById('sel-source').selectedOptions[0]?.text ?? selected
+    btn.textContent = `Définir "${name}" par défaut`
+  }
+}
+
+async function setDefaultProvider(id) {
+  const btn = document.getElementById('btn-set-default')
+  btn.disabled = true
+  try {
+    const r = await fetch(`${SK}/signalk/v2/api/weather/_providers/_default/${encodeURIComponent(id)}`, { method: 'POST' })
+    if (!r.ok) throw new Error(await r.text())
+    defaultProviderId = id
+    // Mettre à jour le ★ dans le sélecteur
+    for (const opt of document.getElementById('sel-source').options) {
+      opt.textContent = opt.textContent.replace(' ★', '')
+      if (opt.value === id) opt.textContent += ' ★'
+    }
+    updateDefaultBtn()
+  } catch (e) {
+    showStatus(`Erreur : ${e.message}`)
+    setTimeout(() => showStatus(null), 3000)
+  } finally {
+    btn.disabled = false
+  }
+}
+
+// ── Main refresh ──────────────────────────────────────────────────────────────
+let debounce = null
+
+function refresh() {
+  clearTimeout(debounce)
+  debounce = setTimeout(doRefresh, 350)
+}
+
+async function doRefresh() {
+  const bounds  = map.getBounds()
+  const step    = autoStep()
+  const source  = document.getElementById('sel-source').value
+  const center  = map.getCenter()
+
+  document.getElementById('grid-info').textContent = `auto (${step}°)`
+
+  // Si le pas a changé (zoom modifié), effacer toute la grille existante
+  // pour éviter que plusieurs densités coexistent à l'écran.
+  if (step !== currentStep) {
+    barbGroup.clearLayers()
+    barbLayers.clear()
+    rainLayers.clear()
+    labelLayers.clear()
+    currentStep = step
+  } else {
+    // Même pas : retirer seulement les markers hors de la vue
+    for (const [key] of barbLayers) {
+      const [klat, klon] = latLonFromKey(key)
+      if (!isNaN(klat) && !bounds.contains([klat, klon])) removeMarker(key)
+    }
+  }
+
+  const pts = computeGrid(bounds, step)
+  pts.sort((a, b) =>
+    Math.hypot(a[0]-center.lat, a[1]-center.lng) - Math.hypot(b[0]-center.lat, b[1]-center.lng))
+
+  for (const [lat, lon] of pts) {
+    const key  = cacheKey(lat, lon)
+    const data = getCached(key)
+    if (data) { ingestTimes(data); renderMarker(key, lat, lon, data) }
+  }
+
+  const missing = pts.filter(([lat, lon]) => !getCached(cacheKey(lat, lon)))
+  if (missing.length > 0) {
+    await fetchBatch(missing, source, ({ key, lat, lon, data }) => {
+      ingestTimes(data)
+      renderMarker(key, lat, lon, data)
+    })
+  }
+}
+
+function latLonFromKey(key) {
+  // key = "provider|lat,lon"
+  const coords = key.includes('|') ? key.split('|')[1] : key
+  const [latStr, lonStr] = coords.split(',')
+  return [parseFloat(latStr), parseFloat(lonStr)]
+}
+
+function rerender() {
+  for (const [key] of barbLayers) {
+    const [lat, lon] = latLonFromKey(key)
+    const data = getCached(key)
+    if (data) renderMarker(key, lat, lon, data)
+  }
+}
+
+function rerenderAll() {
+  // Re-rendu depuis le cache (utilisé après changement de couche)
+  barbGroup.clearLayers()
+  barbLayers.clear()
+  rainLayers.clear()
+  labelLayers.clear()
+  if (!currentStep) currentStep = autoStep()
+  const bounds = map.getBounds()
+  for (const [key, entry] of memCache) {
+    if (Date.now() - entry.ts >= CACHE_TTL) continue
+    const [lat, lon] = latLonFromKey(key)
+    if (!isNaN(lat) && bounds.contains([lat, lon])) renderMarker(key, lat, lon, entry.data)
+  }
+}
+
+function updateLegend() {
+  const el = document.getElementById('legend-text')
+  if (currentLayer === 'wind') {
+    el.innerHTML = '<b>Barbules de vent</b>½ trait = 5 nœuds &nbsp;|&nbsp; trait = 10 nœuds<br>fanion = 50 nœuds &nbsp;|&nbsp; ○ = calme (&lt;3 nœuds)'
+  } else if (currentLayer === 'temp') {
+    el.innerHTML = '<b>Température</b>Bleu = froid &nbsp;|&nbsp; Vert = tempéré &nbsp;|&nbsp; Rouge = chaud'
+  } else if (currentLayer === 'cloud') {
+    el.innerHTML = '<b>Nébulosité</b>Transparent = ciel clair &nbsp;|&nbsp; Gris foncé = couvert à 100%'
+  } else if (currentLayer === 'precip') {
+    el.innerHTML = '<b>Précipitations</b>Transparent = sec &nbsp;|&nbsp; Bleu clair = légère pluie<br>Bleu → Violet → Rouge = intensité croissante'
+  } else {
+    el.innerHTML = '<b>Barbules de rafales</b>½ trait = 5 nœuds &nbsp;|&nbsp; trait = 10 nœuds<br>fanion = 50 nœuds &nbsp;|&nbsp; ○ = calme (&lt;3 nœuds)'
+  }
+}
+
+// ── Status ────────────────────────────────────────────────────────────────────
+function showStatus(msg) {
+  const el = document.getElementById('status')
+  if (msg) { el.textContent = msg; el.style.display = 'block' }
+  else       el.style.display = 'none'
+}
+
+// ── Vessel ────────────────────────────────────────────────────────────────────
+function vesselIcon(hdgDeg) {
+  const svg = `<svg viewBox="0 0 20 30" width="20" height="30"
+    style="transform:rotate(${hdgDeg}deg);transform-origin:50% 50%;display:block;
+    filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6))">
+    <polygon points="10,1 19,27 10,22 1,27"
+      fill="#2196F3" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+  </svg>`
+  return L.divIcon({ html: svg, className: '', iconSize: [20, 30], iconAnchor: [10, 15] })
+}
+
+async function centerOnVessel() {
+  try {
+    const [rPos, rHdg] = await Promise.all([
+      fetch(`${SK}/signalk/v1/api/vessels/self/navigation/position`, { credentials: 'include' }),
+      fetch(`${SK}/signalk/v1/api/vessels/self/navigation/headingTrue`, { credentials: 'include' }),
+    ])
+    if (!rPos.ok) return
+    const pos = await rPos.json()
+    const lat = pos.value?.latitude ?? pos.latitude
+    const lon = pos.value?.longitude ?? pos.longitude
+    if (lat == null || lon == null) return
+
+    let hdgDeg = 0
+    if (rHdg.ok) {
+      const h = await rHdg.json()
+      const hdgRad = typeof h?.value === 'number' ? h.value : (typeof h === 'number' ? h : null)
+      if (hdgRad != null) hdgDeg = hdgRad * 180 / Math.PI
+    }
+
+    map.setView([lat, lon], 7)
+    L.marker([lat, lon], { icon: vesselIcon(hdgDeg), interactive: false }).addTo(map)
+  } catch {}
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+;(async () => {
+  purgeLs()
+  await centerOnVessel()
+
+  updateLegend()
+
+  document.querySelectorAll('.layer-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.layer === currentLayer) return
+      document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'))
+      btn.classList.add('active')
+      currentLayer = btn.dataset.layer
+      currentStep  = null   // forcer un recalcul du pas au prochain refresh
+      updateLegend()
+      rerenderAll()
+    })
+  })
+
+  map.on('moveend', refresh)   // moveend se déclenche aussi après un zoom
+
+  document.getElementById('slider-time').addEventListener('input', e => {
+    curTimeIdx = parseInt(e.target.value, 10)
+    updateSliderUI()
+    rerender()
+  })
+
+  document.getElementById('sel-source').addEventListener('change', () => {
+    updateDefaultBtn()
+    // Vider les markers existants — les données sont provider-spécifiques
+    barbGroup.clearLayers()
+    barbLayers.clear()
+    rainLayers.clear()
+    labelLayers.clear()
+    allTimes = []
+    curTimeIdx = 0
+    updateSliderUI()
+    refresh()
+  })
+
+  document.getElementById('btn-set-default').addEventListener('click', () => {
+    const id = document.getElementById('sel-source').value
+    if (id) setDefaultProvider(id)
+  })
+
+  document.getElementById('btn-refresh').addEventListener('click', () => {
+    const bounds = map.getBounds()
+    const step   = autoStep()
+    for (const [lat, lon] of computeGrid(bounds, step)) {
+      const key = cacheKey(lat, lon)
+      memCache.delete(key)
+      try { localStorage.removeItem(LS_PFX + key) } catch {}
+    }
+    doRefresh()
+  })
+
+  // discoverSources() déclenche le premier refresh() après avoir sélectionné le provider
+  discoverSources()
+})()
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "signalk-weather-map",
+  "version": "0.1.0",
+  "description": "Wind barb weather map webapp for SignalK",
+  "keywords": [
+    "signalk-webapp"
+  ],
+  "license": "MIT"
+}

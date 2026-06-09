@@ -222,8 +222,10 @@ const I18N = {
     tipWind: 'Vent', tipGust: 'Rafales', tipKnots: 'nœuds', tipFrom: 'de',
     tipTemp: 'Temp', tipPressure: 'MSLP', tipHumidity: 'Humidité',
     tipCloud: 'Nuages', tipPrecip: 'Précip.',
-    legendWind: 'Barbules de vent', legendGust: 'Barbules de rafales',
+    legendWind: 'Vent', legendGust: 'Rafales',
     legendTemp: 'Température', legendCloud: 'Nébulosité', legendPrecip: 'Précipitations',
+    windDesc:   'Bleu → Vert → Jaune → Orange → Rouge selon la vitesse<br>Barbules affichées si zoom suffisant',
+    gustDesc:   'Même échelle — basé sur la rafale maximale<br>Barbules affichées si zoom suffisant',
     barbDesc:   '½ trait = 5 nœuds &nbsp;|&nbsp; trait = 10 nœuds<br>fanion = 50 nœuds &nbsp;|&nbsp; ○ = calme (&lt;3 nœuds)',
     tempDesc:   'Bleu = froid &nbsp;|&nbsp; Vert = tempéré &nbsp;|&nbsp; Rouge = chaud',
     cloudDesc:  'Transparent = ciel clair &nbsp;|&nbsp; Gris foncé = couvert à 100%',
@@ -240,8 +242,10 @@ const I18N = {
     tipWind: 'Wind', tipGust: 'Gusts', tipKnots: 'kt', tipFrom: 'from',
     tipTemp: 'Temp', tipPressure: 'MSLP', tipHumidity: 'Humidity',
     tipCloud: 'Cloud', tipPrecip: 'Precip.',
-    legendWind: 'Wind barbs', legendGust: 'Gust barbs',
+    legendWind: 'Wind', legendGust: 'Gusts',
     legendTemp: 'Temperature', legendCloud: 'Cloudiness', legendPrecip: 'Precipitation',
+    windDesc:   'Blue → Green → Yellow → Orange → Red by speed<br>Barbs shown when zoomed in',
+    gustDesc:   'Same scale — based on maximum gust<br>Barbs shown when zoomed in',
     barbDesc:   '½ bar = 5 kt &nbsp;|&nbsp; bar = 10 kt<br>pennant = 50 kt &nbsp;|&nbsp; ○ = calm (&lt;3 kt)',
     tempDesc:   'Blue = cold &nbsp;|&nbsp; Green = temperate &nbsp;|&nbsp; Red = hot',
     cloudDesc:  'Transparent = clear sky &nbsp;|&nbsp; Dark grey = overcast',
@@ -340,6 +344,16 @@ function autoStep() {
   return GRID_STEPS.find(s => s >= raw) ?? 10
 }
 
+// Minimum cell pixel size below which barbs / text labels are hidden.
+const MIN_OVERLAY_PX = 38
+
+function cellPixelSize() {
+  const bounds   = map.getBounds()
+  const size     = map.getSize()
+  const degPerPx = (bounds.getEast() - bounds.getWest()) / size.x
+  return (currentStep || 0.25) / degPerPx
+}
+
 // ── Wind barb SVG ─────────────────────────────────────────────────────────────
 function kt(mps) { return mps * 1.94384 }
 
@@ -392,6 +406,33 @@ function tempColor(t) {
   if (t <  35) return lerp('#ffcc00','#ff3300', (t-25)/10)
   return 'rgb(200,0,0)'
 }
+
+// ── Wind / gust color scale ───────────────────────────────────────────────────
+function windColor(speedMps) {
+  // calm → light → moderate → fresh → strong → storm
+  const k = speedMps * 1.94384
+  if (k <  5) return { color: '#b3d9ff', opacity: 0.10 }
+  if (k < 10) return { color: '#64b5f6', opacity: 0.35 }
+  if (k < 15) return { color: '#4caf50', opacity: 0.45 }
+  if (k < 20) return { color: '#cddc39', opacity: 0.50 }
+  if (k < 25) return { color: '#ffeb3b', opacity: 0.55 }
+  if (k < 30) return { color: '#ff9800', opacity: 0.60 }
+  if (k < 40) return { color: '#f44336', opacity: 0.65 }
+  if (k < 50) return { color: '#b71c1c', opacity: 0.70 }
+  return              { color: '#7b1fa2', opacity: 0.75 }
+}
+
+const WIND_GRADIENT_HTML = `<div style="display:flex;height:7px;border-radius:2px;overflow:hidden;margin:3px 0 1px">
+  <div style="flex:1;background:#64b5f6"></div>
+  <div style="flex:1;background:#4caf50"></div>
+  <div style="flex:1;background:#cddc39"></div>
+  <div style="flex:1;background:#ff9800"></div>
+  <div style="flex:1;background:#f44336"></div>
+  <div style="flex:1;background:#7b1fa2"></div>
+</div>
+<div style="display:flex;justify-content:space-between;font-size:9px;color:#888;margin-bottom:2px">
+  <span>5</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50+ kt</span>
+</div>`
 
 // ── Precip color scale ────────────────────────────────────────────────────────
 function precipStyle(mm) {
@@ -485,14 +526,27 @@ function renderMarker(key, lat, lon, data) {
 
   if (currentLayer === 'wind') {
     if (!f.wind) { removeMarker(key); return }
-    const icon = L.divIcon({ html: barbSVG(f.wind.speedTrue ?? 0, f.wind.directionTrue ?? 0),
-      className: 'wind-barb-icon', iconSize: [56, 56], iconAnchor: [28, 28] })
+    const speed = f.wind.speedTrue ?? 0
+    const wc    = windColor(speed)
+    const style = { fillColor: wc.color, fillOpacity: wc.opacity, stroke: false, weight: 0 }
     if (barbLayers.has(key)) {
-      barbLayers.get(key).setIcon(icon).unbindTooltip().bindTooltip(tip, { direction: 'top', offset: [0, -10] })
+      barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
     } else {
-      const m = L.marker([lat, lon], { icon }).addTo(barbGroup)
-      m.bindTooltip(tip, { direction: 'top', offset: [0, -10] })
-      barbLayers.set(key, m)
+      const r = L.rectangle(cellBounds, style).addTo(barbGroup)
+      r.bindTooltip(tip)
+      barbLayers.set(key, r)
+    }
+    if (cellPixelSize() >= MIN_OVERLAY_PX) {
+      const icon = L.divIcon({ html: barbSVG(speed, f.wind.directionTrue ?? 0),
+        className: 'wind-barb-icon', iconSize: [56, 56], iconAnchor: [28, 28] })
+      if (labelLayers.has(key)) {
+        labelLayers.get(key).setIcon(icon)
+      } else {
+        labelLayers.set(key, L.marker([lat, lon], { icon, interactive: false }).addTo(barbGroup))
+      }
+    } else {
+      const l = labelLayers.get(key)
+      if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
     }
 
   } else if (currentLayer === 'temp') {
@@ -507,16 +561,21 @@ function renderMarker(key, lat, lon, data) {
       r.bindTooltip(tip)
       barbLayers.set(key, r)
     }
-    // Étiquette texte centrée sur la cellule
-    const lbl = (tempC >= 0 ? '+' : '') + tempC.toFixed(1) + '°'
-    const lblHtml = `<div style="font-size:10px;font-weight:700;color:#fff;
-      text-shadow:0 0 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);
-      white-space:nowrap;pointer-events:none;line-height:1">${lbl}</div>`
-    const lblIcon = L.divIcon({ html: lblHtml, className: 'wind-barb-icon', iconSize: [40, 14], iconAnchor: [20, 7] })
-    if (labelLayers.has(key)) {
-      labelLayers.get(key).setIcon(lblIcon)
+    // Étiquette texte : uniquement si la cellule est assez grande à l'écran
+    if (cellPixelSize() >= MIN_OVERLAY_PX) {
+      const lbl = (tempC >= 0 ? '+' : '') + tempC.toFixed(1) + '°'
+      const lblHtml = `<div style="font-size:10px;font-weight:700;color:#fff;
+        text-shadow:0 0 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);
+        white-space:nowrap;pointer-events:none;line-height:1">${lbl}</div>`
+      const lblIcon = L.divIcon({ html: lblHtml, className: 'wind-barb-icon', iconSize: [40, 14], iconAnchor: [20, 7] })
+      if (labelLayers.has(key)) {
+        labelLayers.get(key).setIcon(lblIcon)
+      } else {
+        labelLayers.set(key, L.marker([lat, lon], { icon: lblIcon, interactive: false }).addTo(barbGroup))
+      }
     } else {
-      labelLayers.set(key, L.marker([lat, lon], { icon: lblIcon, interactive: false }).addTo(barbGroup))
+      const l = labelLayers.get(key)
+      if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
     }
 
   } else if (currentLayer === 'cloud') {
@@ -544,14 +603,26 @@ function renderMarker(key, lat, lon, data) {
   } else if (currentLayer === 'gust') {
     const gust = f.wind?.gust
     if (gust == null) { removeMarker(key); return }
-    const icon = L.divIcon({ html: barbSVG(gust, f.wind.directionTrue ?? 0),
-      className: 'wind-barb-icon', iconSize: [56, 56], iconAnchor: [28, 28] })
+    const wc    = windColor(gust)
+    const style = { fillColor: wc.color, fillOpacity: wc.opacity, stroke: false, weight: 0 }
     if (barbLayers.has(key)) {
-      barbLayers.get(key).setIcon(icon).unbindTooltip().bindTooltip(tip, { direction: 'top', offset: [0, -10] })
+      barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
     } else {
-      const m = L.marker([lat, lon], { icon }).addTo(barbGroup)
-      m.bindTooltip(tip, { direction: 'top', offset: [0, -10] })
-      barbLayers.set(key, m)
+      const r = L.rectangle(cellBounds, style).addTo(barbGroup)
+      r.bindTooltip(tip)
+      barbLayers.set(key, r)
+    }
+    if (cellPixelSize() >= MIN_OVERLAY_PX) {
+      const icon = L.divIcon({ html: barbSVG(gust, f.wind.directionTrue ?? 0),
+        className: 'wind-barb-icon', iconSize: [56, 56], iconAnchor: [28, 28] })
+      if (labelLayers.has(key)) {
+        labelLayers.get(key).setIcon(icon)
+      } else {
+        labelLayers.set(key, L.marker([lat, lon], { icon, interactive: false }).addTo(barbGroup))
+      }
+    } else {
+      const l = labelLayers.get(key)
+      if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
     }
   }
 }
@@ -788,9 +859,9 @@ function rerenderAll() {
 function updateLegend() {
   const el = document.getElementById('legend-text')
   if (currentLayer === 'wind') {
-    el.innerHTML = `<b>${t.legendWind}</b>${t.barbDesc}`
+    el.innerHTML = `<b>${t.legendWind}</b>${WIND_GRADIENT_HTML}${t.windDesc}<br><span style="font-size:10px;color:#888">${t.barbDesc}</span>`
   } else if (currentLayer === 'gust') {
-    el.innerHTML = `<b>${t.legendGust}</b>${t.barbDesc}`
+    el.innerHTML = `<b>${t.legendGust}</b>${WIND_GRADIENT_HTML}${t.gustDesc}<br><span style="font-size:10px;color:#888">${t.barbDesc}</span>`
   } else if (currentLayer === 'temp') {
     el.innerHTML = `<b>${t.legendTemp}</b>${t.tempDesc}`
   } else if (currentLayer === 'cloud') {

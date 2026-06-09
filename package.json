@@ -1,9 +1,33 @@
 {
   "name": "signalk-weather-map",
   "version": "0.1.0",
-  "description": "Wind barb weather map webapp for SignalK",
+  "description": "Weather map webapp for SignalK — wind barbs, temperature, cloudiness and precipitation overlay on a Leaflet map",
   "keywords": [
-    "signalk-webapp"
+    "signalk-webapp",
+    "signalk",
+    "weather",
+    "wind",
+    "marine",
+    "leaflet",
+    "forecast"
   ],
-  "license": "MIT"
+  "author": "Jean-Laurent Girod <jeanlaurent.girod@icloud.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/macjl/signalk-weather-map.git"
+  },
+  "homepage": "https://github.com/macjl/signalk-weather-map#readme",
+  "bugs": {
+    "url": "https://github.com/macjl/signalk-weather-map/issues"
+  },
+  "files": [
+    "public/",
+    "screenshots/",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=12"
+  }
 }

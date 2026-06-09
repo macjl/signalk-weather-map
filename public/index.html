@@ -924,11 +924,18 @@ async function doRefresh() {
     if (data) { ingestTimes(data); renderMarker(key, lat, lon, data) }
   }
 
+  // Afficher immédiatement les données déjà en cache avant de fetcher la suite.
+  renderHeatmap()
+
   const missing = pts.filter(([lat, lon]) => !getCached(cacheKey(lat, lon)))
   if (missing.length > 0) {
+    let lastRender = 0
     await fetchBatch(missing, source, ({ key, lat, lon, data }) => {
       ingestTimes(data)
       renderMarker(key, lat, lon, data)
+      // Mise à jour progressive du canvas : premier résultat immédiat, puis ~3×/s.
+      const now = Date.now()
+      if (now - lastRender > 300) { renderHeatmap(); lastRender = now }
     })
   }
   renderHeatmap()

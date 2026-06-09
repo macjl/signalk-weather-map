@@ -943,26 +943,32 @@ function updateLayerButtons() {
   for (const [key, entry] of memCache) {
     if (!key.startsWith(provider + '|')) continue
     if (Date.now() - entry.ts >= CACHE_TTL) continue
-    for (const f of entry.data) {
-      if (f.wind?.speedTrue != null)              has.wind   = true
-      if (f.wind?.gust != null)                   has.gust   = true
-      if (f.outside?.temperature != null)         has.temp   = true
-      if (f.outside?.cloudCover != null)          has.cloud  = true
-      if (f.outside?.precipitationVolume != null) has.precip = true
-    }
+    try {
+      for (const f of entry.data) {
+        if (f.wind?.speedTrue != null)              has.wind   = true
+        if (f.wind?.gust != null)                   has.gust   = true
+        if (f.outside?.temperature != null)         has.temp   = true
+        if (f.outside?.cloudCover != null)          has.cloud  = true
+        if (f.outside?.precipitationVolume != null) has.precip = true
+      }
+    } catch {}
     if (has.wind && has.gust && has.temp && has.cloud && has.precip) break
   }
 
+  // Si aucun champ reconnu n'a été trouvé, garder tous les boutons visibles
+  // (provider non encore chargé, format inconnu, hors zone…)
+  if (!Object.values(has).some(v => v)) return
+
   let activeStillVisible = false
   document.querySelectorAll('.layer-btn').forEach(btn => {
-    const show = has[btn.dataset.layer] !== false
+    const show = has[btn.dataset.layer] === true
     btn.style.display = show ? '' : 'none'
     if (btn.classList.contains('active') && show) activeStillVisible = true
   })
 
   // Si la couche active n'a plus de données, basculer sur la première disponible.
   if (!activeStillVisible) {
-    const first = document.querySelector('.layer-btn:not([style*="display: none"]):not([style*="display:none"])')
+    const first = document.querySelector('.layer-btn[style=""],.layer-btn:not([style])')
     if (first) first.click()
   }
 }

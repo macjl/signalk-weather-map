@@ -932,6 +932,39 @@ async function doRefresh() {
     })
   }
   renderHeatmap()
+  updateLayerButtons()
+}
+
+// ── Layer availability ────────────────────────────────────────────────────────
+function updateLayerButtons() {
+  const provider = document.getElementById('sel-source').value
+  const has = { wind: false, gust: false, temp: false, cloud: false, precip: false }
+
+  for (const [key, entry] of memCache) {
+    if (!key.startsWith(provider + '|')) continue
+    if (Date.now() - entry.ts >= CACHE_TTL) continue
+    for (const f of entry.data) {
+      if (f.wind?.speedTrue != null)              has.wind   = true
+      if (f.wind?.gust != null)                   has.gust   = true
+      if (f.outside?.temperature != null)         has.temp   = true
+      if (f.outside?.cloudCover != null)          has.cloud  = true
+      if (f.outside?.precipitationVolume != null) has.precip = true
+    }
+    if (has.wind && has.gust && has.temp && has.cloud && has.precip) break
+  }
+
+  let activeStillVisible = false
+  document.querySelectorAll('.layer-btn').forEach(btn => {
+    const show = has[btn.dataset.layer] !== false
+    btn.style.display = show ? '' : 'none'
+    if (btn.classList.contains('active') && show) activeStillVisible = true
+  })
+
+  // Si la couche active n'a plus de données, basculer sur la première disponible.
+  if (!activeStillVisible) {
+    const first = document.querySelector('.layer-btn:not([style*="display: none"]):not([style*="display:none"])')
+    if (first) first.click()
+  }
 }
 
 function latLonFromKey(key) {
@@ -1060,6 +1093,8 @@ async function centerOnVessel() {
 
   document.getElementById('sel-source').addEventListener('change', () => {
     updateDefaultBtn()
+    // Rétablir tous les boutons — on ne connaît pas encore les champs du nouveau provider
+    document.querySelectorAll('.layer-btn').forEach(btn => btn.style.display = '')
     // Vider les markers existants — les données sont provider-spécifiques
     barbGroup.clearLayers()
     barbLayers.clear()

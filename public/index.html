@@ -285,8 +285,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
 }).addTo(map)
 
-const barbGroup    = L.layerGroup().addTo(map)
-const tileRenderer = L.canvas({ padding: 0.5 })
+const barbGroup = L.layerGroup().addTo(map)
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 function lsGet(key) {
@@ -481,7 +480,8 @@ function renderMarker(key, lat, lon, data) {
   if (!f) { removeMarker(key); return }
   const tip  = buildTooltip(lat, lon, f)
   const half = (currentStep || 0.25) / 2
-  const cellBounds = [[lat - half, lon - half], [lat + half, lon + half]]
+  const eps  = (currentStep || 0.25) * 0.02   // léger chevauchement pour éviter les coutures SVG
+  const cellBounds = [[lat - half - eps, lon - half - eps], [lat + half + eps, lon + half + eps]]
 
   if (currentLayer === 'wind') {
     if (!f.wind) { removeMarker(key); return }
@@ -496,14 +496,14 @@ function renderMarker(key, lat, lon, data) {
     }
 
   } else if (currentLayer === 'temp') {
-    const t = f.outside?.temperature
-    if (t == null) { removeMarker(key); return }
-    const tempC = t - 273.15
+    const tempK = f.outside?.temperature
+    if (tempK == null) { removeMarker(key); return }
+    const tempC = tempK - 273.15
     const style = { fillColor: tempColor(tempC), fillOpacity: 0.5, stroke: false }
     if (barbLayers.has(key)) {
       barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
     } else {
-      const r = L.rectangle(cellBounds, { ...style, renderer: tileRenderer }).addTo(barbGroup)
+      const r = L.rectangle(cellBounds, style).addTo(barbGroup)
       r.bindTooltip(tip)
       barbLayers.set(key, r)
     }
@@ -525,7 +525,7 @@ function renderMarker(key, lat, lon, data) {
     if (barbLayers.has(key)) {
       barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
     } else {
-      const r = L.rectangle(cellBounds, { ...style, renderer: tileRenderer }).addTo(barbGroup)
+      const r = L.rectangle(cellBounds, style).addTo(barbGroup)
       r.bindTooltip(tip)
       barbLayers.set(key, r)
     }
@@ -536,7 +536,7 @@ function renderMarker(key, lat, lon, data) {
     if (barbLayers.has(key)) {
       barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
     } else {
-      const r = L.rectangle(cellBounds, { ...style, renderer: tileRenderer }).addTo(barbGroup)
+      const r = L.rectangle(cellBounds, style).addTo(barbGroup)
       r.bindTooltip(tip)
       barbLayers.set(key, r)
     }
@@ -815,7 +815,7 @@ function vesselIcon(hdgDeg) {
     <polygon points="10,1 19,27 10,22 1,27"
       fill="#2196F3" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
   </svg>`
-  return L.divIcon({ html: svg, className: '', iconSize: [20, 30], iconAnchor: [10, 15] })
+  return L.divIcon({ html: svg, className: 'wind-barb-icon', iconSize: [20, 30], iconAnchor: [10, 15] })
 }
 
 async function centerOnVessel() {

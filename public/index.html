@@ -395,13 +395,13 @@ function tempColor(t) {
 
 // ── Precip color scale ────────────────────────────────────────────────────────
 function precipStyle(mm) {
-  if (mm < 0.1) return { fillOpacity: 0, fillColor: '#fff', stroke: false }
+  if (mm < 0.1) return { fillOpacity: 0, fillColor: '#fff', stroke: false, weight: 0 }
   // bleu clair → bleu → violet → rouge selon intensité
-  if (mm <  1)  return { fillColor: '#90caf9', fillOpacity: 0.30, stroke: false }
-  if (mm <  5)  return { fillColor: '#1e88e5', fillOpacity: 0.50, stroke: false }
-  if (mm < 15)  return { fillColor: '#5e35b1', fillOpacity: 0.60, stroke: false }
-  if (mm < 30)  return { fillColor: '#e53935', fillOpacity: 0.70, stroke: false }
-  return              { fillColor: '#b71c1c', fillOpacity: 0.80, stroke: false }
+  if (mm <  1)  return { fillColor: '#90caf9', fillOpacity: 0.30, stroke: false, weight: 0 }
+  if (mm <  5)  return { fillColor: '#1e88e5', fillOpacity: 0.50, stroke: false, weight: 0 }
+  if (mm < 15)  return { fillColor: '#5e35b1', fillOpacity: 0.60, stroke: false, weight: 0 }
+  if (mm < 30)  return { fillColor: '#e53935', fillOpacity: 0.70, stroke: false, weight: 0 }
+  return              { fillColor: '#b71c1c', fillOpacity: 0.80, stroke: false, weight: 0 }
 }
 
 // ── Fetch ─────────────────────────────────────────────────────────────────────
@@ -480,7 +480,7 @@ function renderMarker(key, lat, lon, data) {
   if (!f) { removeMarker(key); return }
   const tip  = buildTooltip(lat, lon, f)
   const half = (currentStep || 0.25) / 2
-  const eps  = (currentStep || 0.25) * 0.02   // léger chevauchement pour éviter les coutures SVG
+  const eps  = (currentStep || 0.25) * 0.005  // chevauchement sub-pixel pour éviter les coutures SVG
   const cellBounds = [[lat - half - eps, lon - half - eps], [lat + half + eps, lon + half + eps]]
 
   if (currentLayer === 'wind') {
@@ -499,7 +499,7 @@ function renderMarker(key, lat, lon, data) {
     const tempK = f.outside?.temperature
     if (tempK == null) { removeMarker(key); return }
     const tempC = tempK - 273.15
-    const style = { fillColor: tempColor(tempC), fillOpacity: 0.5, stroke: false }
+    const style = { fillColor: tempColor(tempC), fillOpacity: 0.5, stroke: false, weight: 0 }
     if (barbLayers.has(key)) {
       barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
     } else {
@@ -521,7 +521,7 @@ function renderMarker(key, lat, lon, data) {
 
   } else if (currentLayer === 'cloud') {
     const cloud = f.outside?.cloudCover ?? 0
-    const style = { fillColor: '#505050', fillOpacity: cloud * 0.6, stroke: false }
+    const style = { fillColor: '#505050', fillOpacity: cloud * 0.6, stroke: false, weight: 0 }
     if (barbLayers.has(key)) {
       barbLayers.get(key).setStyle(style).unbindTooltip().bindTooltip(tip)
     } else {

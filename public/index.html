@@ -1100,7 +1100,8 @@ async function centerOnVessel() {
     updateDefaultBtn()
     // Rétablir tous les boutons — on ne connaît pas encore les champs du nouveau provider
     document.querySelectorAll('.layer-btn').forEach(btn => btn.style.display = '')
-    // Vider les markers existants — les données sont provider-spécifiques
+    // Vider markers et heatmap — les données sont provider-spécifiques
+    clearHeatmap()
     barbGroup.clearLayers()
     barbLayers.clear()
     rainLayers.clear()

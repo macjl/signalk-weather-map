@@ -983,8 +983,13 @@ function rerender() {
   renderHeatmap()
 }
 
+function clearHeatmap() {
+  if (heatOverlay) { map.removeLayer(heatOverlay); heatOverlay = null }
+}
+
 function rerenderAll() {
   // Re-rendu depuis le cache (utilisé après changement de couche)
+  clearHeatmap()
   barbGroup.clearLayers()
   barbLayers.clear()
   rainLayers.clear()

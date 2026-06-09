@@ -849,10 +849,16 @@ function rerenderAll() {
   labelLayers.clear()
   if (!currentStep) currentStep = autoStep()
   const bounds = map.getBounds()
+  const step = currentStep
+  const eps  = step * 0.01  // tolérance pour l'alignement flottant
   for (const [key, entry] of memCache) {
     if (Date.now() - entry.ts >= CACHE_TTL) continue
     const [lat, lon] = latLonFromKey(key)
-    if (!isNaN(lat) && bounds.contains([lat, lon])) renderMarker(key, lat, lon, entry.data)
+    if (isNaN(lat) || !bounds.contains([lat, lon])) continue
+    // Ne garder que les cellules alignées sur le pas courant
+    if (Math.abs(lat - Math.round(lat / step) * step) > eps) continue
+    if (Math.abs(lon - Math.round(lon / step) * step) > eps) continue
+    renderMarker(key, lat, lon, entry.data)
   }
 }
 

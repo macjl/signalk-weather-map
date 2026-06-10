@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.2] — 2026-06-10
+
+### Fixed
+- `signalk.appIcon` path corrected from `./public/icon.svg` to `./icon.svg` — the `public/` directory is the web root, so the icon was a 404 in the webapps list
+- Removed `signalk-embeddable-webapp` keyword — no module federation bundle exists, which caused the app-dock to repeatedly request a missing `remoteEntry.js`
+
 ## [0.2.1] — 2026-06-10
 
 ### Fixed

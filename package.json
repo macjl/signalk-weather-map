@@ -41,7 +41,7 @@
   "signalk-plugin-enabled-by-default": false,
   "signalk": {
     "displayName": "Weather Map",
-    "appIcon": "./public/icon.svg",
+    "appIcon": "./icon.svg",
     "screenshots": [
       "./screenshots/weather-map.png"
     ]

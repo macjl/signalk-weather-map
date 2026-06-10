@@ -198,6 +198,15 @@
       display: none;
       white-space: nowrap;
     }
+    #status.error {
+      background: rgba(180,20,20,0.92);
+      padding: 8px 22px;
+      font-size: 13px;
+      white-space: normal;
+      max-width: 320px;
+      text-align: center;
+      border-radius: 12px;
+    }
 
     .wind-barb-icon { background: none !important; border: none !important; }
     .leaflet-tooltip { font-size: 12px; line-height: 1.5; }
@@ -276,6 +285,8 @@ const I18N = {
     loading: (d, n) => `Chargement… ${d}/${n}`,
     errSet: m => `Erreur : ${m}`,
     errFetch: n => `${n} point(s) inaccessible(s)`,
+    errNoSource: 'Aucun fournisseur météo actif. Installez et activez un plugin fournisseur dans le tableau de bord SignalK.',
+    errConnect: 'Impossible de contacter le serveur SignalK. Vérifiez que le serveur est démarré.',
     now: 'maintenant', ago: h => `il y a ${h}h`, inN: h => `dans ${h}h`,
   },
   en: {
@@ -298,6 +309,8 @@ const I18N = {
     loading: (d, n) => `Loading… ${d}/${n}`,
     errSet: m => `Error: ${m}`,
     errFetch: n => `${n} point(s) failed to load`,
+    errNoSource: 'No active weather provider. Install and enable a weather provider plugin in the SignalK dashboard.',
+    errConnect: 'Cannot reach the SignalK server. Check that the server is running.',
     now: 'now', ago: h => `${h}h ago`, inN: h => `in ${h}h`,
   }
 }
@@ -972,12 +985,25 @@ async function discoverSources(attempt = 1) {
       sel.appendChild(opt)
     }
 
+    if (sel.options.length === 0) {
+      showError(t.errNoSource)
+      setControlsDisabled(true)
+      return
+    }
+
+    setControlsDisabled(false)
+    showStatus(null)
     updateDefaultBtn()
     updatePanelSummary()
     refresh()
   } catch {
     // SignalK peut encore être en train de démarrer — réessayer avec backoff.
-    if (attempt < 4) setTimeout(() => discoverSources(attempt + 1), attempt * 2000)
+    if (attempt < 4) {
+      setTimeout(() => discoverSources(attempt + 1), attempt * 2000)
+    } else {
+      showError(t.errConnect)
+      setControlsDisabled(true)
+    }
   }
 }
 
@@ -1193,8 +1219,22 @@ function updateLegend() {
 // ── Status ────────────────────────────────────────────────────────────────────
 function showStatus(msg) {
   const el = document.getElementById('status')
+  el.classList.remove('error')
   if (msg) { el.textContent = msg; el.style.display = 'block' }
   else       el.style.display = 'none'
+}
+
+function showError(msg) {
+  const el = document.getElementById('status')
+  el.classList.add('error')
+  el.textContent = msg
+  el.style.display = 'block'
+}
+
+function setControlsDisabled(disabled) {
+  document.getElementById('btn-refresh').disabled = disabled
+  document.getElementById('slider-time').disabled = disabled
+  document.querySelectorAll('.layer-btn').forEach(b => { b.disabled = disabled })
 }
 
 // ── Vessel ────────────────────────────────────────────────────────────────────

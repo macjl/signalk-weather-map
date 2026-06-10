@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.1] — 2026-06-10
+
+### Fixed
+- SignalK plugin registration: `schema: null` (empty `{}` triggered a CI warning about missing JSON Schema fields)
+- Added `package-lock.json` to `.gitignore` to prevent CI from flagging it as an untracked file
+
 ## [0.2.0] — 2026-06-10
 
 ### Added

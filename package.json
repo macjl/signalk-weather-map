@@ -2,8 +2,15 @@
   "name": "signalk-weather-map",
   "version": "0.2.0",
   "description": "Weather map webapp for SignalK — wind barbs, temperature, cloudiness, precipitation and pressure overlay on a Leaflet map",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test"
+  },
   "keywords": [
+    "signalk-node-server-plugin",
     "signalk-webapp",
+    "signalk-embeddable-webapp",
+    "signalk-category-weather",
     "signalk",
     "weather",
     "wind",
@@ -11,7 +18,7 @@
     "leaflet",
     "forecast"
   ],
-  "author": "Jean-Laurent Girod <jeanlaurent.girod@icloud.com>",
+  "author": "Jean-Laurent Girod (@macjl)",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -22,12 +29,21 @@
     "url": "https://github.com/macjl/signalk-weather-map/issues"
   },
   "files": [
+    "index.js",
     "public/",
     "screenshots/",
     "README.md",
     "CHANGELOG.md"
   ],
   "engines": {
-    "node": ">=12"
+    "node": ">=18"
+  },
+  "signalk-plugin-enabled-by-default": false,
+  "signalk": {
+    "displayName": "Weather Map",
+    "appIcon": "./public/icon.svg",
+    "screenshots": [
+      "./screenshots/weather-map.png"
+    ]
   }
 }

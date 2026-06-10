@@ -22,14 +22,49 @@
       box-shadow: 0 4px 16px rgba(0,0,0,0.25);
       min-width: 220px;
     }
-    #panel h3 {
+    #panel.collapsed { min-width: 0; }
+
+    #panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    #panel-header h3 {
       font-size: 13px;
       font-weight: 700;
       color: #1a2535;
-      margin-bottom: 10px;
       letter-spacing: 0.03em;
       text-transform: uppercase;
+      white-space: nowrap;
     }
+    #btn-toggle-panel {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 15px;
+      color: #999;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    #btn-toggle-panel:hover { color: #1a2535; }
+
+    #panel-summary {
+      display: none;
+      font-size: 11px;
+      font-weight: 600;
+      color: #1a2535;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    #panel.collapsed #panel-body { display: none; }
+    #panel.collapsed #panel-summary { display: block; }
+    /* La légende disparaît aussi quand le panel est replié */
+    #panel.collapsed ~ #legend { display: none !important; }
 
     /* Forecast slider */
     .section-label {
@@ -172,34 +207,41 @@
 <div id="map"></div>
 
 <div id="panel">
-  <h3>⚓ Weather Map</h3>
-
-  <div id="layer-selector">
-    <button class="layer-btn active" data-layer="wind"   data-i18n="layerWind"></button>
-    <button class="layer-btn"        data-layer="gust"   data-i18n="layerGust"></button>
-    <button class="layer-btn"        data-layer="temp"   data-i18n="layerTemp"></button>
-    <button class="layer-btn"        data-layer="cloud"  data-i18n="layerCloud"></button>
-    <button class="layer-btn"        data-layer="precip" data-i18n="layerPrecip"></button>
+  <div id="panel-header">
+    <h3>⚓ Weather Map</h3>
+    <button id="btn-toggle-panel" aria-label="Toggle panel">▾</button>
   </div>
+  <div id="panel-summary"></div>
 
-  <div class="section-label" data-i18n="forecast"></div>
-  <div id="time-display">—</div>
-  <div id="time-secondary">&nbsp;</div>
-  <input type="range" id="slider-time" min="0" max="0" value="0" disabled>
+  <div id="panel-body">
+    <div id="layer-selector">
+      <button class="layer-btn active" data-layer="wind"   data-i18n="layerWind"></button>
+      <button class="layer-btn"        data-layer="gust"   data-i18n="layerGust"></button>
+      <button class="layer-btn"        data-layer="temp"   data-i18n="layerTemp"></button>
+      <button class="layer-btn"        data-layer="cloud"  data-i18n="layerCloud"></button>
+      <button class="layer-btn"        data-layer="precip" data-i18n="layerPrecip"></button>
+      <button class="layer-btn"        data-layer="press"  data-i18n="layerPress"></button>
+    </div>
 
-  <hr class="divider">
+    <div class="section-label" data-i18n="forecast"></div>
+    <div id="time-display">—</div>
+    <div id="time-secondary">&nbsp;</div>
+    <input type="range" id="slider-time" min="0" max="0" value="0" disabled>
 
-  <div class="ctrl-row">
-    <label data-i18n="source"></label>
-    <select id="sel-source"></select>
+    <hr class="divider">
+
+    <div class="ctrl-row">
+      <label data-i18n="source"></label>
+      <select id="sel-source"></select>
+    </div>
+    <button id="btn-set-default" style="display:none"></button>
+    <div class="ctrl-row" style="margin-top:6px">
+      <label data-i18n="grid"></label>
+      <span id="grid-info">—</span>
+    </div>
+
+    <button id="btn-refresh" data-i18n="refresh"></button>
   </div>
-  <button id="btn-set-default" style="display:none"></button>
-  <div class="ctrl-row" style="margin-top:6px">
-    <label data-i18n="grid"></label>
-    <span id="grid-info">—</span>
-  </div>
-
-  <button id="btn-refresh" data-i18n="refresh"></button>
 </div>
 
 <div id="legend"><span id="legend-text"></span></div>
@@ -216,42 +258,46 @@ const LANG = (navigator.language || 'en').toLowerCase().startsWith('fr') ? 'fr' 
 const I18N = {
   fr: {
     layerWind: 'Vent', layerGust: 'Rafales', layerTemp: 'Température',
-    layerCloud: 'Nébulosité', layerPrecip: 'Précipitations',
+    layerCloud: 'Nébulosité', layerPrecip: 'Précipitations', layerPress: 'Pression',
     forecast: 'Prévision', source: 'Source', grid: 'Grille', refresh: 'Rafraîchir',
     setDefault: n => `Définir "${n}" par défaut`,
     tipWind: 'Vent', tipGust: 'Rafales', tipKnots: 'nœuds', tipFrom: 'de',
     tipTemp: 'Temp', tipPressure: 'MSLP', tipHumidity: 'Humidité',
     tipCloud: 'Nuages', tipPrecip: 'Précip.',
     legendWind: 'Vent', legendGust: 'Rafales',
-    legendTemp: 'Température', legendCloud: 'Nébulosité', legendPrecip: 'Précipitations',
+    legendTemp: 'Température', legendCloud: 'Nébulosité', legendPrecip: 'Précipitations', legendPress: 'Pression',
     windDesc:   'Bleu → Vert → Jaune → Orange → Rouge selon la vitesse<br>Barbules affichées si zoom suffisant',
     gustDesc:   'Même échelle — basé sur la rafale maximale<br>Barbules affichées si zoom suffisant',
     barbDesc:   '½ trait = 5 nœuds &nbsp;|&nbsp; trait = 10 nœuds<br>fanion = 50 nœuds &nbsp;|&nbsp; ○ = calme (&lt;3 nœuds)',
     tempDesc:   'Bleu = froid &nbsp;|&nbsp; Vert = tempéré &nbsp;|&nbsp; Rouge = chaud',
     cloudDesc:  'Transparent = ciel clair &nbsp;|&nbsp; Gris foncé = couvert à 100%',
     precipDesc: 'Transparent = sec &nbsp;|&nbsp; Bleu clair = légère pluie<br>Bleu → Violet → Rouge = intensité croissante',
+    pressDesc:  'Bleu foncé (&lt;960) → Bleu → Cyan → Vert (1013) → Jaune → Orange → Rouge (&gt;1022 hPa)',
     loading: (d, n) => `Chargement… ${d}/${n}`,
     errSet: m => `Erreur : ${m}`,
+    errFetch: n => `${n} point(s) inaccessible(s)`,
     now: 'maintenant', ago: h => `il y a ${h}h`, inN: h => `dans ${h}h`,
   },
   en: {
     layerWind: 'Wind', layerGust: 'Gusts', layerTemp: 'Temperature',
-    layerCloud: 'Cloudiness', layerPrecip: 'Precipitation',
+    layerCloud: 'Cloudiness', layerPrecip: 'Precipitation', layerPress: 'Pressure',
     forecast: 'Forecast', source: 'Source', grid: 'Grid', refresh: 'Refresh',
     setDefault: n => `Set "${n}" as default`,
     tipWind: 'Wind', tipGust: 'Gusts', tipKnots: 'kt', tipFrom: 'from',
     tipTemp: 'Temp', tipPressure: 'MSLP', tipHumidity: 'Humidity',
     tipCloud: 'Cloud', tipPrecip: 'Precip.',
     legendWind: 'Wind', legendGust: 'Gusts',
-    legendTemp: 'Temperature', legendCloud: 'Cloudiness', legendPrecip: 'Precipitation',
+    legendTemp: 'Temperature', legendCloud: 'Cloudiness', legendPrecip: 'Precipitation', legendPress: 'Pressure',
     windDesc:   'Blue → Green → Yellow → Orange → Red by speed<br>Barbs shown when zoomed in',
     gustDesc:   'Same scale — based on maximum gust<br>Barbs shown when zoomed in',
     barbDesc:   '½ bar = 5 kt &nbsp;|&nbsp; bar = 10 kt<br>pennant = 50 kt &nbsp;|&nbsp; ○ = calm (&lt;3 kt)',
     tempDesc:   'Blue = cold &nbsp;|&nbsp; Green = temperate &nbsp;|&nbsp; Red = hot',
     cloudDesc:  'Transparent = clear sky &nbsp;|&nbsp; Dark grey = overcast',
     precipDesc: 'Transparent = dry &nbsp;|&nbsp; Light blue = light rain<br>Blue → Purple → Red = increasing intensity',
+    pressDesc:  'Dark blue (&lt;960) → Blue → Cyan → Green (1013) → Yellow → Orange → Red (&gt;1022 hPa)',
     loading: (d, n) => `Loading… ${d}/${n}`,
     errSet: m => `Error: ${m}`,
+    errFetch: n => `${n} point(s) failed to load`,
     now: 'now', ago: h => `${h}h ago`, inN: h => `in ${h}h`,
   }
 }
@@ -270,9 +316,8 @@ const CONC      = 15
 const LS_PFX    = 'skwx2_'
 
 // ── State ─────────────────────────────────────────────────────────────────────
-const memCache   = new Map()
-const barbLayers = new Map()
-const rainLayers  = new Map()   // gouttes de pluie (layer cloud uniquement)
+const memCache    = new Map()
+const barbLayers  = new Map()
 const labelLayers = new Map()   // étiquettes texte (layer temp)
 let   allTimes   = []
 let   curTimeIdx = 0
@@ -280,6 +325,7 @@ let   abortCtrl  = null
 let   defaultProviderId = null   // provider actuellement par défaut côté SignalK
 let   currentStep  = null        // pas de grille du dernier rendu
 let   currentLayer = 'wind'      // 'wind' | 'temp' | 'cloud'
+let   _heatmapLogged = false
 
 // ── Map ───────────────────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl: true }).setView([48.5, 2.5], 6)
@@ -317,32 +363,46 @@ function purgeLs() {
     if (!k.startsWith(LS_PFX)) continue
     try {
       const e = JSON.parse(localStorage.getItem(k))
-      if (Date.now() - e.ts > CACHE_TTL) localStorage.removeItem(k)
+      if (Date.now() - e.ts > CACHE_TTL) { localStorage.removeItem(k); continue }
+      if (!Array.isArray(e.data) || e.data.length === 0) localStorage.removeItem(k)
     } catch { localStorage.removeItem(k) }
   }
 }
 
-function cacheKey(lat, lon) {
-  const provider = document.getElementById('sel-source').value
-  return `${provider}|${lat.toFixed(2)},${lon.toFixed(2)}`
+function cacheKey(lat, lon, provider) {
+  const prov = provider ?? document.getElementById('sel-source').value
+  return `${prov}|${lat.toFixed(2)},${lon.toFixed(2)}`
 }
 
 function getCached(key) {
   const m = memCache.get(key)
-  if (m && Date.now() - m.ts < CACHE_TTL) return m.data
-  memCache.delete(key)
+  if (m) {
+    if (Date.now() - m.ts < CACHE_TTL && Array.isArray(m.data) && m.data.length > 0) return m.data
+    memCache.delete(key)  // expired or empty — evict
+  }
   const s = lsGet(key)
-  if (s) { memCache.set(key, { ts: s.ts, data: s.data }); return s.data }
+  if (s && Array.isArray(s.data) && s.data.length > 0) {
+    memCache.set(key, { ts: s.ts, data: s.data })
+    return s.data
+  }
   return null
 }
 function setCached(key, data) {
+  if (!Array.isArray(data) || data.length === 0) return  // ne pas cacher les résultats vides
   memCache.set(key, { ts: Date.now(), data })
   lsSet(key, data)
 }
 
+// getCached n'évince qu'à l'accès : sans sweep, les entrées des zones quittées
+// resteraient en mémoire indéfiniment sur une longue session.
+setInterval(() => {
+  const now = Date.now()
+  for (const [k, e] of memCache) if (now - e.ts >= CACHE_TTL) memCache.delete(k)
+}, 5 * 60_000)
+
 // ── Auto grid step ────────────────────────────────────────────────────────────
 // Target ~40px between barbs. Steps in degrees.
-const GRID_STEPS = [0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
+const GRID_STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
 
 function autoStep() {
   const bounds = map.getBounds()
@@ -397,39 +457,6 @@ function barbSVG(speedMps, dirRad) {
     style="transform:rotate(${deg}deg);transform-origin:${C}px ${C}px">${parts.join('')}</svg>`
 }
 
-// ── Temperature renderer ──────────────────────────────────────────────────────
-function tempColor(t) {
-  // bleu (-20°) → cyan (0°) → vert (15°) → jaune (25°) → rouge (40°)
-  function lerp(a, b, x) {
-    const ah = parseInt(a.slice(1,3),16), bh = parseInt(b.slice(1,3),16)
-    const as = parseInt(a.slice(3,5),16), bs = parseInt(b.slice(3,5),16)
-    const al = parseInt(a.slice(5,7),16), bl = parseInt(b.slice(5,7),16)
-    const r = Math.round(ah + (bh-ah)*x), g = Math.round(as + (bs-as)*x), bl2 = Math.round(al + (bl-al)*x)
-    return `rgb(${r},${g},${bl2})`
-  }
-  if (t < -20) return 'rgb(0,0,200)'
-  if (t <   0) return lerp('#0044ff','#00ccee', (t+20)/20)
-  if (t <  15) return lerp('#00ccee','#22aa44', t/15)
-  if (t <  25) return lerp('#22aa44','#ffcc00', (t-15)/10)
-  if (t <  35) return lerp('#ffcc00','#ff3300', (t-25)/10)
-  return 'rgb(200,0,0)'
-}
-
-// ── Wind / gust color scale ───────────────────────────────────────────────────
-function windColor(speedMps) {
-  // calm → light → moderate → fresh → strong → storm
-  const k = speedMps * 1.94384
-  if (k <  5) return { color: '#b3d9ff', opacity: 0.10 }
-  if (k < 10) return { color: '#64b5f6', opacity: 0.35 }
-  if (k < 15) return { color: '#4caf50', opacity: 0.45 }
-  if (k < 20) return { color: '#cddc39', opacity: 0.50 }
-  if (k < 25) return { color: '#ffeb3b', opacity: 0.55 }
-  if (k < 30) return { color: '#ff9800', opacity: 0.60 }
-  if (k < 40) return { color: '#f44336', opacity: 0.65 }
-  if (k < 50) return { color: '#b71c1c', opacity: 0.70 }
-  return              { color: '#7b1fa2', opacity: 0.75 }
-}
-
 const WIND_GRADIENT_HTML = `<div style="display:flex;height:7px;border-radius:2px;overflow:hidden;margin:3px 0 1px">
   <div style="flex:1;background:#64b5f6"></div>
   <div style="flex:1;background:#4caf50"></div>
@@ -444,7 +471,6 @@ const WIND_GRADIENT_HTML = `<div style="display:flex;height:7px;border-radius:2p
 
 // ── Canvas heatmap ────────────────────────────────────────────────────────────
 // Steps usable for lookup: representable in toFixed(2) → stepI = step*100 integer.
-const LOOKUP_STEPS    = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
 const LOOKUP_STEPS_I  = [5, 10, 25, 50, 100, 200, 500, 1000]  // step * 100, integer
 
 // Temperature color stops [tempC, r, g, b] — mirrors tempColor() but int-valued.
@@ -464,6 +490,7 @@ function extractValue(f, layer) {
   if (layer === 'temp')   return f.outside?.temperature ?? null
   if (layer === 'cloud')  return f.outside?.cloudCover  ?? null
   if (layer === 'precip') { const v = f.outside?.precipitationVolume; return v == null ? null : v * 1000 }
+  if (layer === 'press')  { const v = f.outside?.pressure;            return v == null ? null : v / 100 }
   return null
 }
 
@@ -504,6 +531,16 @@ function valueToRgba(value, layer) {
     if (value < 30)  return [229, 57, 53,178]
     return                  [183, 28, 28,204]
   }
+  if (layer === 'press') {
+    // hPa — bleu foncé (dépression/tempête) → bleu → cyan → vert (normal ~1013) → jaune → orange → rouge (anticyclone)
+    if (value < 960)  return [ 20,  0,150,210]
+    if (value < 975)  return [ 50, 80,220,191]
+    if (value < 990)  return [ 80,150,230,178]
+    if (value < 1005) return [100,200,210,155]
+    if (value < 1013) return [160,210, 60,140]
+    if (value < 1022) return [240,130, 20,165]
+    return                  [190, 30, 10,185]
+  }
   return null
 }
 
@@ -517,10 +554,13 @@ function renderHeatmap() {
   // 1. Pre-build integer-keyed value map from memCache (once, before pixel loop).
   //    Key = latI*100000 + lonI  where latI = round(lat*100), lonI = round(lon*100).
   //    This avoids per-pixel getCached() + pickForecast() + string allocation.
-  const valCache = new Map()
+  const valCache  = new Map()
+  const valPoints = []  // flat [latI, lonI, val, ...] for nearest-neighbour fallback
+  let providerEntries = 0
   for (const [key, entry] of memCache) {
     if (Date.now() - entry.ts >= CACHE_TTL) continue
     if (!key.startsWith(provider + '|')) continue
+    providerEntries++
     const coords = key.split('|')[1]
     const comma  = coords.indexOf(',')
     const latI   = Math.round(parseFloat(coords) * 100)
@@ -530,10 +570,39 @@ function renderHeatmap() {
     const val = extractValue(f, layer)
     if (val == null) continue
     valCache.set(latI * 100000 + lonI, val)
+    valPoints.push(latI, lonI, val)
   }
-  if (valCache.size === 0) return
+  if (valCache.size === 0) {
+    if (providerEntries > 0) {
+      console.warn(`renderHeatmap: ${providerEntries} entries for "${provider}" but no value for layer "${layer}"`)
+      // Log first forecast to diagnose field structure
+      if (!_heatmapLogged) {
+        _heatmapLogged = true
+        for (const [key, entry] of memCache) {
+          if (!key.startsWith(provider + '|')) continue
+          const f = pickForecast(entry.data)
+          console.log(`[diag] first forecast for "${provider}":`, JSON.stringify(f))
+          break
+        }
+      }
+    }
+    return
+  }
+  _heatmapLogged = false  // reset when we DO have data
 
-  // 2. Render at ¼ resolution — browser upscales the img smoothly as an imageOverlay.
+  // 2. Bounding box of data points + margin (1.5× grid step) for nearest-neighbour guard.
+  let minLatI = Infinity, maxLatI = -Infinity, minLonI = Infinity, maxLonI = -Infinity
+  for (let vi = 0; vi < valPoints.length; vi += 3) {
+    const la = valPoints[vi], lo = valPoints[vi + 1]
+    if (la < minLatI) minLatI = la
+    if (la > maxLatI) maxLatI = la
+    if (lo < minLonI) minLonI = lo
+    if (lo > maxLonI) maxLonI = lo
+  }
+  // nnMargin in integer latI/lonI units (step × 100 × 1.5)
+  const nnMargin = Math.round((currentStep || autoStep()) * 150)
+
+  // 3. Render at ¼ resolution — browser upscales the img smoothly as an imageOverlay.
   const W = Math.max(1, Math.ceil(size.x / 4))
   const H = Math.max(1, Math.ceil(size.y / 4))
   heatCanvas.width = W; heatCanvas.height = H
@@ -552,7 +621,7 @@ function renderHeatmap() {
 
     for (let ppx = 0; ppx < W; ppx++) {
       const lon   = We + (ppx + 0.5) * dLon
-      const lonx  = Math.round(lon * 100)
+      const lonx  = Math.round((((lon % 360) + 540) % 360 - 180) * 100)
 
       // Bilinear interpolation: try finest step first, fall back to coarser.
       let rgba = null
@@ -561,7 +630,8 @@ function renderHeatmap() {
         const latSI = Math.floor(latx / sI) * sI
         const lonWI = Math.floor(lonx / sI) * sI
         const latNI = latSI + sI
-        const lonEI = lonWI + sI
+        // Coin Est : au-delà de la couture, le point de grille est stocké sous -180.
+        const lonEI = lonWI + sI >= 18000 ? lonWI + sI - 36000 : lonWI + sI
 
         const vSW = valCache.get(latSI * 100000 + lonWI)
         if (vSW == null) continue
@@ -577,6 +647,20 @@ function renderHeatmap() {
         const val = (1-dx)*(1-dy)*vSW + dx*(1-dy)*vSE + (1-dx)*dy*vNW + dx*dy*vNE
         rgba = valueToRgba(val, layer)
         break
+      }
+
+      // Nearest-neighbour fallback — limité à l'emprise des données + 1.5 pas de grille.
+      // Évite de colorier les zones sans couverture (hors emprise GRIB, etc.).
+      if (!rgba &&
+          latx >= minLatI - nnMargin && latx <= maxLatI + nnMargin &&
+          lonx >= minLonI - nnMargin && lonx <= maxLonI + nnMargin) {
+        let bestVal = null, bestDist2 = Infinity
+        for (let vi = 0; vi < valPoints.length; vi += 3) {
+          const dLa = latx - valPoints[vi], dLo = lonx - valPoints[vi + 1]
+          const d2  = dLa * dLa + dLo * dLo
+          if (d2 < bestDist2) { bestDist2 = d2; bestVal = valPoints[vi + 2] }
+        }
+        if (bestVal !== null) rgba = valueToRgba(bestVal, layer)
       }
 
       if (!rgba) continue
@@ -598,37 +682,50 @@ function renderHeatmap() {
   }
 }
 
-// ── Precip color scale ────────────────────────────────────────────────────────
-function precipStyle(mm) {
-  if (mm < 0.1) return { fillOpacity: 0, fillColor: '#fff', stroke: false, weight: 0 }
-  // bleu clair → bleu → violet → rouge selon intensité
-  if (mm <  1)  return { fillColor: '#90caf9', fillOpacity: 0.30, stroke: false, weight: 0 }
-  if (mm <  5)  return { fillColor: '#1e88e5', fillOpacity: 0.50, stroke: false, weight: 0 }
-  if (mm < 15)  return { fillColor: '#5e35b1', fillOpacity: 0.60, stroke: false, weight: 0 }
-  if (mm < 30)  return { fillColor: '#e53935', fillOpacity: 0.70, stroke: false, weight: 0 }
-  return              { fillColor: '#b71c1c', fillOpacity: 0.80, stroke: false, weight: 0 }
-}
-
 // ── Fetch ─────────────────────────────────────────────────────────────────────
 async function fetchPoint(lat, lon, source, signal) {
-  const key = cacheKey(lat, lon)
+  const key = cacheKey(lat, lon, source)
   const hit = getCached(key)
   if (hit) return { key, lat, lon, data: hit }
 
   const url = new URL(`${SK}/signalk/v2/api/weather/forecasts/point`)
   url.searchParams.set('lat', lat.toFixed(4))
   url.searchParams.set('lon', lon.toFixed(4))
-  if (source) url.searchParams.set('provider', source)   // ?provider=<pluginId>
+  if (source) url.searchParams.set('provider', source)
 
-  const r = await fetch(url.toString(), { signal })
-  if (!r.ok) throw new Error(r.status)
-  const data = await r.json()
-  setCached(key, data)
-  return { key, lat, lon, data }
+  const MAX_ATTEMPTS = 3
+  let delay = 500  // ms, doublé à chaque tentative
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+    let r = null
+    try {
+      r = await fetch(url.toString(), { signal })
+    } catch (e) {
+      // Abort : propager. Erreur réseau (TypeError) : retryable, comme un 5xx.
+      if (signal.aborted || e instanceof DOMException) throw e
+    }
+    if (r) {
+      if (r.ok) {
+        const data = await r.json()
+        setCached(key, data)
+        return { key, lat, lon, data }
+      }
+      // 4xx (sauf 429) : erreur permanente, inutile de réessayer
+      if (r.status >= 400 && r.status < 500 && r.status !== 429) throw new Error(r.status)
+    }
+    if (attempt < MAX_ATTEMPTS) {
+      await new Promise((res, rej) => {
+        const tid = setTimeout(res, delay)
+        signal.addEventListener('abort', () => { clearTimeout(tid); rej(new DOMException('Aborted', 'AbortError')) }, { once: true })
+      })
+      delay *= 2
+    }
+  }
+  throw new Error('max retries exceeded')
 }
 
 async function fetchBatch(points, source, onResult) {
-  let i = 0, done = 0
+  let i = 0, done = 0, failed = 0
   const total = points.length
   if (abortCtrl) abortCtrl.abort()
   abortCtrl = new AbortController()
@@ -639,13 +736,25 @@ async function fetchBatch(points, source, onResult) {
       const [lat, lon] = points[i++]
       try {
         const res = await fetchPoint(lat, lon, source, sig)
-        if (!sig.aborted) { onResult(res); done++; showStatus(t.loading(done, total)) }
-      } catch { if (!sig.aborted) done++ }
+        if (!sig.aborted) {
+          if (res.data.length > 0) onResult(res)
+          done++
+          showStatus(t.loading(done, total))
+        }
+      } catch (e) {
+        if (!sig.aborted) {
+          done++
+          if (!(e instanceof DOMException)) failed++
+        }
+      }
     }
   }
 
   await Promise.all(Array.from({ length: CONC }, worker))
-  if (!sig.aborted) showStatus(null)
+  if (!sig.aborted) {
+    if (failed > 0) { showStatus(t.errFetch(failed)); setTimeout(() => showStatus(null), 4000) }
+    else showStatus(null)
+  }
 }
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
@@ -653,12 +762,16 @@ function computeGrid(bounds, step) {
   const S = Math.floor(bounds.getSouth() / step) * step
   const N = Math.ceil(bounds.getNorth() / step) * step
   const W = Math.floor(bounds.getWest() / step) * step
-  const E = Math.ceil(bounds.getEast() / step) * step
+  // Cap at one full circumference to avoid duplicates when view wraps antimeridian.
+  // Subtract half-step so the last generated lon doesn't wrap back to W after normalization.
+  // Normalize each lon to [-180, 180) so cache keys stay canonical.
+  const E = Math.min(Math.ceil(bounds.getEast() / step) * step, W + 360 - step * 0.5)
   const pts = []
   for (let lat = S; lat <= N + 1e-9; lat = Math.round((lat + step) * 1e6) / 1e6) {
     if (lat < -90 || lat > 90) continue
     for (let lon = W; lon <= E + 1e-9; lon = Math.round((lon + step) * 1e6) / 1e6) {
-      pts.push([lat, lon])
+      const nLon = ((lon % 360) + 540) % 360 - 180
+      pts.push([lat, nLon])
     }
   }
   return pts
@@ -671,9 +784,11 @@ function pickForecast(data) {
   if (!data || data.length === 0) return null
   const t = curTime()
   if (!t) return data[0]
+  const target = Date.parse(t)
   let best = null, bestDiff = Infinity
   for (const f of data) {
-    const d = Math.abs(new Date(f.date) - new Date(t))
+    // _ts : timestamp mémoïsé sur l'objet forecast (appelé ~3×/s par entrée du cache)
+    const d = Math.abs((f._ts ?? (f._ts = Date.parse(f.date))) - target)
     if (d < bestDiff) { bestDiff = d; best = f }
   }
   return best
@@ -728,6 +843,20 @@ function renderMarker(key, lat, lon, data) {
       const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
     }
 
+  } else if (currentLayer === 'press') {
+    if (f.outside?.pressure == null) { const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) } return }
+    if (large) {
+      const hpa    = Math.round(f.outside.pressure / 100)
+      const lblHtml = `<div style="font-size:10px;font-weight:700;color:#fff;
+        text-shadow:0 0 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);
+        white-space:nowrap;pointer-events:none;line-height:1">${hpa}</div>`
+      const lblIcon = L.divIcon({ html: lblHtml, className: 'wind-barb-icon', iconSize: [40, 14], iconAnchor: [20, 7] })
+      if (labelLayers.has(key)) { labelLayers.get(key).setIcon(lblIcon) }
+      else { labelLayers.set(key, L.marker([lat, lon], { icon: lblIcon, interactive: false }).addTo(barbGroup)) }
+    } else {
+      const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
+    }
+
   } else {
     // cloud / precip : canvas gère tout, pas de superposition
     const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
@@ -737,13 +866,9 @@ function renderMarker(key, lat, lon, data) {
 function removeMarker(key) {
   const m = barbLayers.get(key)
   if (m) { barbGroup.removeLayer(m); barbLayers.delete(key) }
-  const r = rainLayers.get(key)
-  if (r) { barbGroup.removeLayer(r); rainLayers.delete(key) }
   const l = labelLayers.get(key)
   if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
 }
-const removeBarb = removeMarker
-
 function buildTooltip(lat, lon, f) {
   const d      = new Date(f.date)
   const speed  = f.wind?.speedTrue
@@ -773,7 +898,8 @@ function fmtUtc(d) {
   const dd  = d.getUTCDate().toString().padStart(2,'0')
   const mm  = (d.getUTCMonth()+1).toString().padStart(2,'0')
   const hh  = d.getUTCHours().toString().padStart(2,'0')
-  return `${dd}/${mm} ${hh}:00 UTC`
+  const mi  = d.getUTCMinutes().toString().padStart(2,'0')
+  return `${dd}/${mm} ${hh}:${mi} UTC`
 }
 
 function fmtRelative(iso) {
@@ -809,16 +935,18 @@ function ingestTimes(data) {
   const set = new Set(allTimes)
   for (const f of data) if (f.date) set.add(f.date)
   if (set.size === allTimes.length) return false
+  // Preserve the currently selected ISO string across re-sorts so that prepending
+  // earlier timestamps doesn't silently move the slider to a different point in time.
+  const prevIso = curTimeIdx > 0 ? allTimes[curTimeIdx] : null
   allTimes = Array.from(set).sort()
-
-  // Keep curTimeIdx pointing at the same ISO string if possible
-  // Default: first future time
-  if (allTimes.length > 0 && curTimeIdx === 0) {
+  if (prevIso) {
+    const newIdx = allTimes.indexOf(prevIso)
+    curTimeIdx = newIdx >= 0 ? newIdx : Math.min(curTimeIdx, allTimes.length - 1)
+  } else if (allTimes.length > 0) {
     const now = Date.now()
     const futureIdx = allTimes.findIndex(t => new Date(t) >= now)
     curTimeIdx = futureIdx >= 0 ? futureIdx : 0
   }
-
   updateSliderUI()
   return true
 }
@@ -826,10 +954,10 @@ function ingestTimes(data) {
 // ── Source discovery ──────────────────────────────────────────────────────────
 // Uses GET /signalk/v2/api/weather/_providers — only lists providers that are
 // actually started and registered. Disabled plugins won't appear here.
-async function discoverSources() {
+async function discoverSources(attempt = 1) {
   try {
     const r = await fetch(`${SK}/signalk/v2/api/weather/_providers`)
-    if (!r.ok) return
+    if (!r.ok) throw new Error(r.status)
     const providers = await r.json()   // { pluginId: { name, isDefault } }
 
     const sel = document.getElementById('sel-source')
@@ -845,8 +973,12 @@ async function discoverSources() {
     }
 
     updateDefaultBtn()
+    updatePanelSummary()
     refresh()
-  } catch {}
+  } catch {
+    // SignalK peut encore être en train de démarrer — réessayer avec backoff.
+    if (attempt < 4) setTimeout(() => discoverSources(attempt + 1), attempt * 2000)
+  }
 }
 
 function updateDefaultBtn() {
@@ -884,6 +1016,7 @@ async function setDefaultProvider(id) {
 
 // ── Main refresh ──────────────────────────────────────────────────────────────
 let debounce = null
+let refreshGen = 0  // incremented each doRefresh; stale instances bail out early
 
 function refresh() {
   clearTimeout(debounce)
@@ -891,6 +1024,7 @@ function refresh() {
 }
 
 async function doRefresh() {
+  const gen    = ++refreshGen   // capture generation at start
   const bounds  = map.getBounds()
   const step    = autoStep()
   const source  = document.getElementById('sel-source').value
@@ -903,7 +1037,6 @@ async function doRefresh() {
   if (step !== currentStep) {
     barbGroup.clearLayers()
     barbLayers.clear()
-    rainLayers.clear()
     labelLayers.clear()
     currentStep = step
   } else {
@@ -919,7 +1052,7 @@ async function doRefresh() {
     Math.hypot(a[0]-center.lat, a[1]-center.lng) - Math.hypot(b[0]-center.lat, b[1]-center.lng))
 
   for (const [lat, lon] of pts) {
-    const key  = cacheKey(lat, lon)
+    const key  = cacheKey(lat, lon, source)
     const data = getCached(key)
     if (data) { ingestTimes(data); renderMarker(key, lat, lon, data) }
   }
@@ -927,17 +1060,25 @@ async function doRefresh() {
   // Afficher immédiatement les données déjà en cache avant de fetcher la suite.
   renderHeatmap()
 
-  const missing = pts.filter(([lat, lon]) => !getCached(cacheKey(lat, lon)))
+  const missing = pts.filter(([lat, lon]) => !getCached(cacheKey(lat, lon, source)))
   if (missing.length > 0) {
     let lastRender = 0
     await fetchBatch(missing, source, ({ key, lat, lon, data }) => {
+      if (gen !== refreshGen) return   // une instance plus récente a pris le relais
       ingestTimes(data)
       renderMarker(key, lat, lon, data)
-      // Mise à jour progressive du canvas : premier résultat immédiat, puis ~3×/s.
+      // Mise à jour progressive : ~3×/s. updateLayerButtons en premier pour basculer
+      // vers une couche disponible si la couche courante n'a pas encore de données.
       const now = Date.now()
-      if (now - lastRender > 300) { renderHeatmap(); lastRender = now }
+      if (now - lastRender > 300) {
+        updateLayerButtons()
+        renderHeatmap()
+        lastRender = now
+      }
     })
   }
+
+  if (gen !== refreshGen) return  // superseded pendant le fetch — ne pas écraser l'état
   renderHeatmap()
   updateLayerButtons()
 }
@@ -945,8 +1086,9 @@ async function doRefresh() {
 // ── Layer availability ────────────────────────────────────────────────────────
 function updateLayerButtons() {
   const provider = document.getElementById('sel-source').value
-  const has = { wind: false, gust: false, temp: false, cloud: false, precip: false }
+  const has = { wind: false, gust: false, temp: false, cloud: false, precip: false, press: false }
 
+  let scanned = 0
   for (const [key, entry] of memCache) {
     if (!key.startsWith(provider + '|')) continue
     if (Date.now() - entry.ts >= CACHE_TTL) continue
@@ -957,9 +1099,14 @@ function updateLayerButtons() {
         if (f.outside?.temperature != null)         has.temp   = true
         if (f.outside?.cloudCover != null)          has.cloud  = true
         if (f.outside?.precipitationVolume != null) has.precip = true
+        if (f.outside?.pressure != null)            has.press  = true
+        if (has.wind && has.gust && has.temp && has.cloud && has.precip && has.press) break
       }
     } catch {}
-    if (has.wind && has.gust && has.temp && has.cloud && has.precip) break
+    if (has.wind && has.gust && has.temp && has.cloud && has.precip && has.press) break
+    // La disponibilité des champs est quasi homogène spatialement :
+    // un échantillon borné suffit, inutile de parcourir tout le cache.
+    if (++scanned >= 30) break
   }
 
   // Si aucun champ reconnu n'a été trouvé, garder tous les boutons visibles
@@ -975,7 +1122,7 @@ function updateLayerButtons() {
 
   // Si la couche active n'a plus de données, basculer sur la première disponible.
   if (!activeStillVisible) {
-    const first = document.querySelector('.layer-btn[style=""],.layer-btn:not([style])')
+    const first = Array.from(document.querySelectorAll('.layer-btn')).find(b => b.style.display !== 'none')
     if (first) first.click()
   }
 }
@@ -1005,13 +1152,14 @@ function rerenderAll() {
   clearHeatmap()
   barbGroup.clearLayers()
   barbLayers.clear()
-  rainLayers.clear()
   labelLayers.clear()
   if (!currentStep) currentStep = autoStep()
+  const provider = document.getElementById('sel-source').value
   const bounds = map.getBounds()
   const step = currentStep
   const eps  = step * 0.01
   for (const [key, entry] of memCache) {
+    if (!key.startsWith(provider + '|')) continue
     if (Date.now() - entry.ts >= CACHE_TTL) continue
     const [lat, lon] = latLonFromKey(key)
     if (isNaN(lat) || !bounds.contains([lat, lon])) continue
@@ -1033,6 +1181,10 @@ function updateLegend() {
     el.innerHTML = `<b>${t.legendTemp}</b>${t.tempDesc}`
   } else if (currentLayer === 'cloud') {
     el.innerHTML = `<b>${t.legendCloud}</b>${t.cloudDesc}`
+  } else if (currentLayer === 'precip') {
+    el.innerHTML = `<b>${t.legendPrecip}</b>${t.precipDesc}`
+  } else if (currentLayer === 'press') {
+    el.innerHTML = `<b>${t.legendPress}</b>${t.pressDesc}`
   } else {
     el.innerHTML = `<b>${t.legendPrecip}</b>${t.precipDesc}`
   }
@@ -1080,6 +1232,20 @@ async function centerOnVessel() {
   } catch {}
 }
 
+// ── Panel collapse ────────────────────────────────────────────────────────────
+function updatePanelSummary() {
+  const sourceEl = document.getElementById('sel-source')
+  const provName = (sourceEl.selectedOptions[0]?.text ?? sourceEl.value ?? '—').replace(' ★', '')
+  const layerName = document.querySelector('.layer-btn.active')?.textContent?.trim() ?? '—'
+  document.getElementById('panel-summary').textContent = `${provName} · ${layerName}`
+}
+
+function setPanelCollapsed(collapsed) {
+  document.getElementById('panel').classList.toggle('collapsed', collapsed)
+  document.getElementById('btn-toggle-panel').textContent = collapsed ? '▸' : '▾'
+  try { localStorage.setItem('skwx_panel', collapsed ? '0' : '1') } catch {}
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 ;(async () => {
   document.documentElement.lang = LANG
@@ -1088,6 +1254,12 @@ async function centerOnVessel() {
   await centerOnVessel()
 
   updateLegend()
+
+  // Restaurer l'état collapsed et brancher le toggle
+  if (localStorage.getItem('skwx_panel') === '0') setPanelCollapsed(true)
+  document.getElementById('btn-toggle-panel').addEventListener('click', () => {
+    setPanelCollapsed(!document.getElementById('panel').classList.contains('collapsed'))
+  })
 
   document.querySelectorAll('.layer-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1098,6 +1270,7 @@ async function centerOnVessel() {
       currentStep  = null   // forcer un recalcul du pas au prochain refresh
       updateLegend()
       rerenderAll()
+      updatePanelSummary()
     })
   })
 
@@ -1110,6 +1283,12 @@ async function centerOnVessel() {
   })
 
   document.getElementById('sel-source').addEventListener('change', () => {
+    // Invalider tout de suite le batch en cours : sans cela, pendant les 350 ms de
+    // debounce, ses callbacks passeraient encore le test de génération et
+    // ré-ajouteraient des markers de l'ancien provider sur la carte vidée.
+    refreshGen++
+    if (abortCtrl) abortCtrl.abort()
+    showStatus(null)   // le batch aborté ne nettoiera pas son compteur de chargement
     updateDefaultBtn()
     // Rétablir tous les boutons — on ne connaît pas encore les champs du nouveau provider
     document.querySelectorAll('.layer-btn').forEach(btn => btn.style.display = '')
@@ -1117,11 +1296,11 @@ async function centerOnVessel() {
     clearHeatmap()
     barbGroup.clearLayers()
     barbLayers.clear()
-    rainLayers.clear()
     labelLayers.clear()
     allTimes = []
     curTimeIdx = 0
     updateSliderUI()
+    updatePanelSummary()
     refresh()
   })
 

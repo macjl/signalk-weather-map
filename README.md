@@ -1,6 +1,6 @@
 # signalk-weather-map
 
-A [SignalK](https://signalk.org) webapp that displays meteorological forecast data on an interactive map — wind barbs, temperature, cloudiness, precipitation and gusts, powered by any SignalK weather provider.
+A [SignalK](https://signalk.org) webapp that displays meteorological forecast data on an interactive map — wind barbs, temperature, cloudiness, precipitation, pressure and gusts, powered by any SignalK weather provider.
 
 ![Weather Map screenshot](screenshots/weather-map.png)
 
@@ -8,12 +8,14 @@ A [SignalK](https://signalk.org) webapp that displays meteorological forecast da
 
 - **Wind barbs** — standard meteorological notation (½ bar = 5 kt, bar = 10 kt, pennant = 50 kt)
 - **Gusts** — same barb display based on gust speed
-- **Temperature** — colour-coded cells (blue → green → yellow → red)
+- **Temperature** — colour-coded cells with numeric label (blue → green → yellow → red)
 - **Cloudiness** — transparency-based grey overlay (0 % = transparent, 100 % = dark grey)
 - **Precipitation** — colour-coded intensity (transparent → light blue → blue → purple → red)
+- **Pressure** — colour-coded cells with numeric hPa label (dark blue = storm/low < 960 → cyan → green ≈ 1013 → orange → dark red = anticyclone > 1022)
 - **Automatic grid density** — spacing adapts to zoom level (~40 px between points)
 - **Forecast time slider** — browse all forecast steps provided by the weather source
 - **Multi-provider support** — select any registered SignalK weather provider; set a default with one click
+- **Collapsible panel** — panel and legend collapse to a one-line summary (model + layer) for mobile use; state persisted across sessions
 - **Vessel position** — boat marker oriented to true heading (falls back to north if unavailable)
 - **Client-side cache** — 30-minute localStorage + memory cache; parallel batch fetching (15 concurrent)
 - **i18n** — UI language detected from the browser (French and English supported)
@@ -65,9 +67,10 @@ Or open it from the SignalK dashboard → **Webapps**.
 |---|---|
 | Wind | Barbs based on true wind speed |
 | Gusts | Barbs based on gust speed |
-| Temperature | Colour-coded cell fill |
+| Temperature | Colour-coded cell fill with °C label |
 | Cloudiness | Grey transparency proportional to cloud cover |
 | Precipitation | Colour intensity proportional to rain volume |
+| Pressure | Colour-coded cell fill with hPa label (blue = low, red = high) |
 
 ### Tooltip
 

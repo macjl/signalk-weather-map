@@ -7,6 +7,6 @@ module.exports = function (app) {
     description: 'Weather map webapp — wind barbs, temperature, cloudiness, precipitation and pressure overlay on a Leaflet map',
     start: function () {},
     stop: function () {},
-    schema: {}
+    schema: null
   }
 }

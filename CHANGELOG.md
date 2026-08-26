@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.3] — 2026-08-27
+
 ### Changed
 - localStorage cache writes are batched and quota-aware: instead of one synchronous `JSON.stringify` + write per fetched grid point (≈ 500 per viewport ≈ 5 MB — past the typical localStorage quota, where writes silently failed), writes are queued and flushed in batches (after a fetch batch completes, on `pagehide`, or every 100 pending entries); when the quota is hit, expired then oldest entries are evicted automatically, and persistence degrades gracefully to memory-only for the session
 

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.5] — 2026-08-27
+
+### Fixed
+- Include the Webapps-list icon at the package root while retaining the public webapp asset
+
 ## [0.2.4] — 2026-08-27
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "signalk-weather-map",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Weather map webapp for SignalK — wind barbs, temperature, cloudiness, precipitation and pressure overlay on a Leaflet map",
   "main": "index.js",
   "scripts": {
@@ -29,6 +29,7 @@
   },
   "files": [
     "index.js",
+    "icon.svg",
     "public/",
     "screenshots/",
     "README.md",
@@ -40,7 +41,7 @@
   "signalk-plugin-enabled-by-default": false,
   "signalk": {
     "displayName": "Weather Map",
-    "appIcon": "./public/icon.svg",
+    "appIcon": "./icon.svg",
     "screenshots": [
       "./screenshots/weather-map.png"
     ]

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="50" fill="#1a3a6b"/>
+  <!-- Wind barb staff -->
+  <line x1="50" y1="18" x2="50" y2="82" stroke="white" stroke-width="4.5" stroke-linecap="round"/>
+  <!-- Pennant (50 kt) -->
+  <polygon points="50,22 74,30 50,38" fill="white"/>
+  <!-- Full barb (10 kt) -->
+  <line x1="50" y1="44" x2="74" y2="36" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Full barb (10 kt) -->
+  <line x1="50" y1="54" x2="74" y2="46" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Half barb (5 kt) -->
+  <line x1="50" y1="64" x2="62" y2="59" stroke="white" stroke-width="3.5" stroke-linecap="round"/>
+</svg>

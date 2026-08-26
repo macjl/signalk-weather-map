@@ -43,7 +43,7 @@ function makeStorage(quotaBytes) {
 function loadCache(storage) {
   const constants = html.match(/^const (?:CACHE_TTL|LS_PFX|LS_FLUSH_DELAY|LS_FLUSH_MAX_PENDING) *=.*$/gm)
   assert.ok(constants && constants.length >= 4, 'cache constants found in script')
-  const section = html.match(/\/\/ ── Cache ─+\n([\s\S]*?)\n\/\/ ── Auto grid step/)[1]
+  const section = html.match(/\/\/ ── Cache ─+\r?\n([\s\S]*?)\r?\n\/\/ ── Auto grid step/)[1]
 
   const sandbox = {
     localStorage: storage,

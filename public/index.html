@@ -327,6 +327,10 @@ const SK        = window.location.origin
 const CACHE_TTL = 30 * 60 * 1000
 const CONC      = 15
 const LS_PFX    = 'skwx2_'
+// Écritures localStorage regroupées : un stringify+setItem synchrone par point
+// (~500 par chargement, ~5 Mo) bloque le main thread et dépasse vite le quota.
+const LS_FLUSH_DELAY       = 1000  // ms — coalescer les rafales d'écriture
+const LS_FLUSH_MAX_PENDING = 100   // flush immédiat au-delà de N clés en attente
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const memCache    = new Map()
@@ -368,9 +372,80 @@ function lsGet(key) {
     return e
   } catch { return null }
 }
+
+// Les écritures passent par une file d'attente vidée par lsFlush() :
+// le cache mémoire reste autoritaire pour la session, localStorage n'est
+// qu'une persistance au rechargement.
+const lsPending = new Map()   // key → { ts, data } en attente d'écriture
+let   lsDisabled  = false     // quota irrécupérable → mémoire seule pour la session
+let   lsFlushTimer = null
+
 function lsSet(key, data) {
-  try { localStorage.setItem(LS_PFX + key, JSON.stringify({ ts: Date.now(), data })) } catch {}
+  if (lsDisabled) return
+  lsPending.set(key, { ts: Date.now(), data })
+  if (lsPending.size >= LS_FLUSH_MAX_PENDING) { lsFlush(); return }
+  clearTimeout(lsFlushTimer)
+  lsFlushTimer = setTimeout(lsFlush, LS_FLUSH_DELAY)
 }
+
+function lsRemove(key) {
+  lsPending.delete(key)
+  try { localStorage.removeItem(LS_PFX + key) } catch {}
+}
+
+function lsFlush() {
+  clearTimeout(lsFlushTimer)
+  lsFlushTimer = null
+  if (lsPending.size === 0) return
+  const entries = [...lsPending]
+  lsPending.clear()
+  for (const [key, e] of entries) {
+    try {
+      localStorage.setItem(LS_PFX + key, JSON.stringify(e))
+    } catch {
+      // Quota dépassé : libérer de l'espace puis réessayer une fois ;
+      // sinon abandonner la persistance pour la session.
+      if (!lsEvictForSpace()) { lsDisabled = true; return }
+      try { localStorage.setItem(LS_PFX + key, JSON.stringify(e)) }
+      catch { lsDisabled = true; return }
+    }
+  }
+}
+
+// Libère de l'espace localStorage : supprime les entrées périmées/vides/corrompues,
+// puis à défaut les plus anciennes. Retourne true si quelque chose a été supprimé.
+function lsEvictForSpace() {
+  try {
+    const now = Date.now()
+    const live = []
+    let removed = false
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith(LS_PFX)) continue
+      try {
+        const e = JSON.parse(localStorage.getItem(k))
+        if (!e || !Array.isArray(e.data) || e.data.length === 0 || now - e.ts > CACHE_TTL) {
+          localStorage.removeItem(k)
+          removed = true
+        } else {
+          live.push([e.ts, k])
+        }
+      } catch { localStorage.removeItem(k); removed = true }
+    }
+    if (!removed && live.length > 0) {
+      live.sort((a, b) => a[0] - b[0])
+      for (const [, k] of live.slice(0, Math.max(1, Math.floor(live.length / 4)))) {
+        localStorage.removeItem(k)
+      }
+      removed = true
+    }
+    return removed
+  } catch (e) {
+    // SecurityError or other storage-access failure: disable localStorage for the session
+    lsDisabled = true
+    return false
+  }
+}
+
 function purgeLs() {
   for (const k of Object.keys(localStorage)) {
     if (!k.startsWith(LS_PFX)) continue
@@ -403,7 +478,7 @@ function getCached(key) {
 function setCached(key, data) {
   if (!Array.isArray(data) || data.length === 0) return  // ne pas cacher les résultats vides
   memCache.set(key, { ts: Date.now(), data })
-  lsSet(key, data)
+  lsSet(key, data)   // écriture différée — voir lsFlush()
 }
 
 // getCached n'évince qu'à l'accès : sans sweep, les entrées des zones quittées
@@ -1104,6 +1179,9 @@ async function doRefresh() {
     })
   }
 
+  // Données valides quelle que soit la génération : persister tout de suite
+  lsFlush()
+
   if (gen !== refreshGen) return  // superseded pendant le fetch — ne pas écraser l'état
   renderHeatmap()
   updateLayerButtons()
@@ -1291,6 +1369,8 @@ function setPanelCollapsed(collapsed) {
   document.documentElement.lang = LANG
   applyI18n()
   purgeLs()
+  // Persister les écritures en attente avant que l'onglet ne parte (localStorage = synchrone)
+  window.addEventListener('pagehide', lsFlush)
   await centerOnVessel()
 
   updateLegend()
@@ -1355,7 +1435,7 @@ function setPanelCollapsed(collapsed) {
     for (const [lat, lon] of computeGrid(bounds, step)) {
       const key = cacheKey(lat, lon)
       memCache.delete(key)
-      try { localStorage.removeItem(LS_PFX + key) } catch {}
+      lsRemove(key)
     }
     doRefresh()
   })

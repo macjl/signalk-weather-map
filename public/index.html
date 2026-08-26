@@ -415,29 +415,35 @@ function lsFlush() {
 // Libère de l'espace localStorage : supprime les entrées périmées/vides/corrompues,
 // puis à défaut les plus anciennes. Retourne true si quelque chose a été supprimé.
 function lsEvictForSpace() {
-  const now = Date.now()
-  const live = []
-  let removed = false
-  for (const k of Object.keys(localStorage)) {
-    if (!k.startsWith(LS_PFX)) continue
-    try {
-      const e = JSON.parse(localStorage.getItem(k))
-      if (!e || !Array.isArray(e.data) || e.data.length === 0 || now - e.ts > CACHE_TTL) {
-        localStorage.removeItem(k)
-        removed = true
-      } else {
-        live.push([e.ts, k])
-      }
-    } catch { localStorage.removeItem(k); removed = true }
-  }
-  if (!removed && live.length > 0) {
-    live.sort((a, b) => a[0] - b[0])
-    for (const [, k] of live.slice(0, Math.max(1, Math.floor(live.length / 4)))) {
-      localStorage.removeItem(k)
+  try {
+    const now = Date.now()
+    const live = []
+    let removed = false
+    for (const k of Object.keys(localStorage)) {
+      if (!k.startsWith(LS_PFX)) continue
+      try {
+        const e = JSON.parse(localStorage.getItem(k))
+        if (!e || !Array.isArray(e.data) || e.data.length === 0 || now - e.ts > CACHE_TTL) {
+          localStorage.removeItem(k)
+          removed = true
+        } else {
+          live.push([e.ts, k])
+        }
+      } catch { localStorage.removeItem(k); removed = true }
     }
-    removed = true
+    if (!removed && live.length > 0) {
+      live.sort((a, b) => a[0] - b[0])
+      for (const [, k] of live.slice(0, Math.max(1, Math.floor(live.length / 4)))) {
+        localStorage.removeItem(k)
+      }
+      removed = true
+    }
+    return removed
+  } catch (e) {
+    // SecurityError or other storage-access failure: disable localStorage for the session
+    lsDisabled = true
+    return false
   }
-  return removed
 }
 
 function purgeLs() {

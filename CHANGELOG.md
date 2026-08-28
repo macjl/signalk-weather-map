@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-28
+
+### Added
+- A fixed, full-width two-row control dock: compact horizontal source/layer controls and a complete forecast timeline with previous/next controls, bounds, day markers and selectable steps
+- Provider information dialog, opened from the selected source, with provider ID, default status, forecast range, available steps and detected data layers
+- Non-rendered provider data is listed with an asterisk in the provider dialog, so data such as currents, waves, swell or tides remains discoverable
+
+### Changed
+- Legend moved to the upper-right corner, is expanded by default and has its own visibility control; automatic grid spacing is shown there
+- The usual "set as default" action now lives in the provider information dialog instead of the main dock
+- Removed the dock collapse control and manual refresh action
+
+### Fixed
+- Prevented rapid touches on dock controls from reaching Leaflet zoom handlers
+- Provider dialog now supports Escape, keeps keyboard focus inside the dialog and restores focus to its trigger on close
+- Removed obsolete styles and state left by the former collapsible panel
+
 ## [0.2.5] — 2026-08-27
 
 ### Fixed

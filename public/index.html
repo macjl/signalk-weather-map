@@ -22,59 +22,9 @@
       box-shadow: 0 4px 16px rgba(0,0,0,0.25);
       min-width: 220px;
     }
-    #panel.collapsed { min-width: 0; }
-
-    #panel-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 10px;
-      gap: 10px;
-    }
-    #panel-header h3 {
-      font-size: 13px;
-      font-weight: 700;
-      color: #1a2535;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-    #btn-toggle-panel {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 15px;
-      color: #999;
-      padding: 0;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-    #btn-toggle-panel:hover { color: #1a2535; }
-
-    #panel-summary {
-      display: none;
-      font-size: 11px;
-      font-weight: 600;
-      color: #1a2535;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      max-width: 180px;
-    }
-    #panel.collapsed #panel-body { display: none; }
-    #panel.collapsed #panel-summary { display: block; }
-    /* La légende disparaît aussi quand le panel est replié */
-    #panel.collapsed ~ #legend { display: none !important; }
+    /* The legend has an independent visibility control. */
 
     /* Forecast slider */
-    .section-label {
-      font-size: 10px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: #888;
-      margin-bottom: 5px;
-    }
     #time-display {
       font-size: 14px;
       font-weight: 700;
@@ -96,20 +46,6 @@
       margin-bottom: 10px;
     }
 
-    .divider { border: none; border-top: 1px solid #e8e8e8; margin: 8px 0; }
-
-    /* Source row */
-    .ctrl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-    .ctrl-row label { font-size: 11px; color: #666; width: 52px; flex-shrink: 0; }
-    .ctrl-row select {
-      font-size: 12px;
-      border: 1px solid #d0d0d0;
-      border-radius: 5px;
-      padding: 3px 5px;
-      flex: 1;
-      background: #fff;
-      color: #222;
-    }
     #grid-info {
       font-size: 11px;
       color: #999;
@@ -132,42 +68,6 @@
     }
     #btn-set-default:hover { background: #f0a020; color: #fff; }
     #btn-set-default:disabled { opacity: 0.4; cursor: default; }
-
-    #btn-refresh {
-      width: 100%;
-      margin-top: 4px;
-      padding: 5px;
-      font-size: 12px;
-      border: none;
-      border-radius: 5px;
-      background: #2566c8;
-      color: #fff;
-      cursor: pointer;
-      font-weight: 600;
-      letter-spacing: 0.02em;
-    }
-    #btn-refresh:hover { background: #1a4fa0; }
-
-    /* Layer selector */
-    #layer-selector {
-      display: flex;
-      flex-direction: column;
-      gap: 3px;
-      margin-bottom: 10px;
-    }
-    .layer-btn {
-      padding: 5px 3px;
-      font-size: 11px;
-      font-weight: 600;
-      border: 1px solid #d0d0d0;
-      border-radius: 5px;
-      background: #f5f5f5;
-      color: #555;
-      cursor: pointer;
-      letter-spacing: 0.01em;
-    }
-    .layer-btn:hover { background: #e8e8e8; }
-    .layer-btn.active { background: #1a3a6b; color: #fff; border-color: #1a3a6b; }
 
     #legend {
       position: absolute;
@@ -210,6 +110,71 @@
 
     .wind-barb-icon { background: none !important; border: none !important; }
     .leaflet-tooltip { font-size: 12px; line-height: 1.5; }
+
+    /* Bottom control dock: a compact control row and a full-width timeline. */
+    #panel { top: auto; right: 0; bottom: 0; left: 0; min-width: 0; border-radius: 12px 12px 0 0; padding: 8px 12px 9px; box-shadow: 0 -4px 16px rgba(0,0,0,.22); touch-action: manipulation; }
+    #panel-header { display: flex; align-items: center; justify-content: flex-start; margin: 0; gap: 8px; min-width: 0; }
+    #panel-body { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+    .source-control { display: flex; align-items: center; gap: 5px; flex: 0 1 260px; min-width: 125px; }
+    .source-control label { font-size: 11px; color: #666; flex-shrink: 0; }
+    .source-control select { min-width: 0; width: 100%; font-size: 12px; border: 1px solid #c8d0dc; border-radius: 6px; padding: 5px 7px; background: #fff; color: #222; }
+    #layer-selector { display: flex; flex-direction: row; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: thin; padding: 1px 9px; margin: 0; flex: 1; border-right: 1px solid #dce2ea; }
+    .source-control { padding-right: 8px; border-right: 1px solid #dce2ea; }
+    .layer-btn { padding: 5px 8px; font-size: 11px; font-weight: 600; border: 1px solid #d0d0d0; border-radius: 999px; background: #f5f5f5; color: #555; cursor: pointer; letter-spacing: .01em; white-space: nowrap; flex: 0 0 auto; }
+    .layer-btn:hover { background: #e8e8e8; }
+    .layer-btn.active { background: #1a3a6b; color: #fff; border-color: #1a3a6b; }
+    #btn-set-default { width: auto; margin: 0; padding: 5px 8px; border-radius: 6px; white-space: nowrap; }
+    #btn-provider-info { width: 25px; height: 25px; flex: 0 0 25px; border: 1px solid #aebccc; border-radius: 50%; background: #fff; color: #1a3a6b; font-weight: 800; font-family: Georgia, serif; font-size: 14px; line-height: 1; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    #btn-provider-info:hover:not(:disabled) { background: #eaf1fb; }
+    #btn-provider-info:disabled { opacity: .4; cursor: default; }
+
+    #time-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .time-step-btn { width: 30px; height: 30px; border: 1px solid #c8d0dc; border-radius: 50%; background: #fff; color: #1a3a6b; font-size: 22px; line-height: 1; cursor: pointer; flex-shrink: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    .time-step-btn:hover:not(:disabled) { background: #eaf1fb; }
+    .time-step-btn:disabled { opacity: .35; cursor: default; }
+    #time-area { position: relative; min-width: 0; flex: 1; }
+    #time-meta { display: grid; grid-template-columns: minmax(72px,1fr) auto minmax(72px,1fr); align-items: center; gap: 10px; margin-bottom: 2px; }
+    #time-display { margin: 0; min-height: 0; font-size: 13px; white-space: nowrap; }
+    #time-secondary { margin: 0; min-height: 14px; font-size: 10px; }
+    .time-bound { color: #617085; font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .time-bound:last-child { text-align: right; }
+    #time-slider-wrap { position: relative; height: 27px; }
+    #slider-time { position: absolute; top: 9px; left: 0; z-index: 2; margin: 0; }
+    #time-ticks { position: absolute; inset: 0 7px; z-index: 3; pointer-events: none; }
+    .time-tick { position: absolute; top: 11px; width: 8px; height: 8px; transform: translateX(-50%); border: 1px solid #3d628f; border-radius: 50%; background: #fff; padding: 0; cursor: pointer; pointer-events: auto; }
+    .time-tick.day-a { border-color: #2566c8; background: #dceaff; }
+    .time-tick.day-b { border-color: #11a0a0; background: #d8f4f1; }
+    .time-tick.active { width: 12px; height: 12px; top: 9px; background: #1a3a6b; border-color: #1a3a6b; }
+    .time-day { position: absolute; top: -2px; transform: translateX(-50%); color: #52627a; font-size: 9px; font-weight: 700; white-space: nowrap; }
+    #legend { top: 10px; right: 10px; bottom: auto; left: auto; width: min(350px, calc(100vw - 20px)); max-width: none; padding: 10px 30px 10px 13px; font-size: 12px; }
+    #legend-title { display: block; margin-bottom: 7px; color: #1a3a6b; font-size: 13px; font-weight: 800; letter-spacing: .02em; }
+    #legend #grid-info { display: block !important; margin-top: 5px; padding-top: 4px; border-top: 1px solid #dce2ea; color: #617085; font-size: 10px; font-weight: 700; }
+    #btn-toggle-legend, #btn-show-legend { border: 0; cursor: pointer; color: #52627a; background: transparent; font-size: 17px; line-height: 1; }
+    #btn-toggle-legend { position: absolute; top: 7px; right: 7px; padding: 2px 4px; }
+    #btn-toggle-legend:hover, #btn-show-legend:hover { color: #1a3a6b; }
+    #btn-show-legend { position: absolute; top: 10px; right: 10px; z-index: 1001; padding: 6px 8px; border-radius: 7px; background: rgba(255,255,255,.9); box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+    #status { bottom: 148px; }
+    #provider-info-dialog { position: absolute; inset: 0; z-index: 1200; display: grid; place-items: center; padding: 18px; background: rgba(18, 31, 48, .35); }
+    #provider-info-dialog[hidden] { display: none; }
+    #provider-info-card { position: relative; width: min(430px, 100%); max-height: min(620px, calc(100vh - 36px)); overflow-y: auto; padding: 20px; border-radius: 12px; background: #fff; color: #1a2535; box-shadow: 0 10px 30px rgba(0,0,0,.28); }
+    #provider-info-card h2 { margin: 0 28px 14px 0; font-size: 18px; line-height: 1.2; color: #1a3a6b; }
+    #btn-close-provider { position: absolute; top: 10px; right: 10px; border: 0; background: transparent; color: #52627a; font-size: 23px; line-height: 1; cursor: pointer; }
+    #provider-info-details { display: grid; grid-template-columns: minmax(110px, 38%) 1fr; gap: 8px 12px; font-size: 13px; }
+    #provider-info-details dt { color: #617085; font-weight: 650; }
+    #provider-info-details dd { min-width: 0; margin: 0; color: #1a2535; font-weight: 650; overflow-wrap: anywhere; }
+    #provider-layers-note { display: block; margin-top: 5px; color: #617085; font-size: 11px; font-weight: 500; }
+    #provider-info-card #btn-set-default { width: 100%; padding: 8px 10px; }
+    @media (max-width: 720px) {
+      #panel { padding: 7px 8px 8px; }
+      .source-control label { display: none !important; }
+      .source-control { flex: 0 1 145px; min-width: 105px; }
+      #btn-provider-info { width: 24px; height: 24px; flex-basis: 24px; }
+      #time-meta { grid-template-columns: minmax(56px,1fr) auto minmax(56px,1fr); gap: 5px; }
+      .time-bound { font-size: 9px; }
+      #legend { top: 10px; bottom: auto; }
+      #btn-show-legend { top: 10px; }
+      #status { bottom: 138px; }
+    }
   </style>
 </head>
 <body>
@@ -217,12 +182,12 @@
 
 <div id="panel">
   <div id="panel-header">
-    <h3>⚓ Weather Map</h3>
-    <button id="btn-toggle-panel" aria-label="Toggle panel">▾</button>
-  </div>
-  <div id="panel-summary"></div>
-
-  <div id="panel-body">
+    <div id="panel-body">
+      <div class="source-control">
+        <label data-i18n="source"></label>
+        <select id="sel-source"></select>
+        <button id="btn-provider-info" type="button" aria-label="Provider information" title="Provider information">i</button>
+      </div>
     <div id="layer-selector">
       <button class="layer-btn active" data-layer="wind"   data-i18n="layerWind"></button>
       <button class="layer-btn"        data-layer="gust"   data-i18n="layerGust"></button>
@@ -230,30 +195,51 @@
       <button class="layer-btn"        data-layer="cloud"  data-i18n="layerCloud"></button>
       <button class="layer-btn"        data-layer="precip" data-i18n="layerPrecip"></button>
       <button class="layer-btn"        data-layer="press"  data-i18n="layerPress"></button>
+      </div>
     </div>
-
-    <div class="section-label" data-i18n="forecast"></div>
-    <div id="time-display">—</div>
-    <div id="time-secondary">&nbsp;</div>
-    <input type="range" id="slider-time" min="0" max="0" value="0" disabled>
-
-    <hr class="divider">
-
-    <div class="ctrl-row">
-      <label data-i18n="source"></label>
-      <select id="sel-source"></select>
+  </div>
+  <div id="time-row">
+    <button id="btn-time-prev" class="time-step-btn" aria-label="Previous forecast">‹</button>
+    <div id="time-area">
+      <div id="time-meta">
+        <span id="time-start" class="time-bound">—</span>
+        <div>
+          <div id="time-display">—</div>
+          <div id="time-secondary">&nbsp;</div>
+        </div>
+        <span id="time-end" class="time-bound">—</span>
+      </div>
+      <div id="time-slider-wrap">
+        <input type="range" id="slider-time" min="0" max="0" value="0" disabled>
+        <div id="time-ticks" aria-label="Forecast timeline"></div>
+      </div>
     </div>
-    <button id="btn-set-default" style="display:none"></button>
-    <div class="ctrl-row" style="margin-top:6px">
-      <label data-i18n="grid"></label>
-      <span id="grid-info">—</span>
-    </div>
-
-    <button id="btn-refresh" data-i18n="refresh"></button>
+    <button id="btn-time-next" class="time-step-btn" aria-label="Next forecast">›</button>
   </div>
 </div>
 
-<div id="legend"><span id="legend-text"></span></div>
+<div id="legend">
+  <button id="btn-toggle-legend" aria-label="Hide legend">×</button>
+  <span id="legend-title">⚓ Weather Map</span>
+  <span id="legend-text"></span>
+  <span id="grid-info">—</span>
+</div>
+<button id="btn-show-legend" aria-label="Show legend" style="display:none">☰</button>
+
+<div id="provider-info-dialog" role="dialog" aria-modal="true" aria-labelledby="provider-info-title" hidden>
+  <section id="provider-info-card">
+    <button id="btn-close-provider" type="button" aria-label="Close">×</button>
+    <h2 id="provider-info-title"></h2>
+    <dl id="provider-info-details">
+      <dt id="provider-plugin-label"></dt><dd id="provider-plugin"></dd>
+      <dt id="provider-status-label"></dt><dd id="provider-status"></dd>
+      <dt id="provider-period-label"></dt><dd id="provider-period"></dd>
+      <dt id="provider-steps-label"></dt><dd id="provider-steps"></dd>
+      <dt id="provider-layers-label"></dt><dd><span id="provider-layers-summary"></span><span id="provider-layers-note"></span></dd>
+    </dl>
+    <button id="btn-set-default" type="button" style="display:none"></button>
+  </section>
+</div>
 
 <div id="status"></div>
 
@@ -270,6 +256,12 @@ const I18N = {
     layerCloud: 'Nébulosité', layerPrecip: 'Précipitations', layerPress: 'Pression',
     forecast: 'Prévision', source: 'Source', grid: 'Grille', refresh: 'Rafraîchir',
     setDefault: n => `Définir "${n}" par défaut`,
+    providerInfo: 'Informations du fournisseur', providerPlugin: 'Plugin fournisseur',
+    providerStatus: 'Statut', providerDefault: 'Fournisseur par défaut', providerNotDefault: 'Fournisseur sélectionné',
+    providerPeriod: 'Période de prévision', providerSteps: 'Pas disponibles', providerLayers: 'Couches disponibles', providerClose: 'Fermer',
+    providerNoData: 'Aucune donnée chargée', providerStepCount: n => `${n} pas`,
+    providerUnsupportedNote: '* disponible mais non affichable sur cette carte',
+    providerCurrent: 'Courant', providerWaves: 'Vagues', providerSwell: 'Houle', providerTides: 'Marées', providerHumidity: 'Humidité',
     tipWind: 'Vent', tipGust: 'Rafales', tipKnots: 'nœuds', tipFrom: 'de',
     tipTemp: 'Temp', tipPressure: 'MSLP', tipHumidity: 'Humidité',
     tipCloud: 'Nuages', tipPrecip: 'Précip.',
@@ -294,6 +286,12 @@ const I18N = {
     layerCloud: 'Cloudiness', layerPrecip: 'Precipitation', layerPress: 'Pressure',
     forecast: 'Forecast', source: 'Source', grid: 'Grid', refresh: 'Refresh',
     setDefault: n => `Set "${n}" as default`,
+    providerInfo: 'Provider information', providerPlugin: 'Provider plugin',
+    providerStatus: 'Status', providerDefault: 'Default provider', providerNotDefault: 'Selected provider',
+    providerPeriod: 'Forecast period', providerSteps: 'Available steps', providerLayers: 'Available layers', providerClose: 'Close',
+    providerNoData: 'No data loaded', providerStepCount: n => `${n} steps`,
+    providerUnsupportedNote: '* available but not displayable on this map',
+    providerCurrent: 'Current', providerWaves: 'Waves', providerSwell: 'Swell', providerTides: 'Tides', providerHumidity: 'Humidity',
     tipWind: 'Wind', tipGust: 'Gusts', tipKnots: 'kt', tipFrom: 'from',
     tipTemp: 'Temp', tipPressure: 'MSLP', tipHumidity: 'Humidity',
     tipCloud: 'Cloud', tipPrecip: 'Precip.',
@@ -343,6 +341,7 @@ let   defaultProviderId = null   // provider actuellement par défaut côté Sig
 let   currentStep  = null        // pas de grille du dernier rendu
 let   currentLayer = 'wind'      // 'wind' | 'temp' | 'cloud'
 let   _heatmapLogged = false
+let   providerInfoReturnFocus = null
 
 // ── Map ───────────────────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl: true }).setView([48.5, 2.5], 6)
@@ -997,15 +996,62 @@ function fmtRelative(iso) {
   return t.inN(Math.round(diff))
 }
 
+function selectTimeIndex(index) {
+  if (index < 0 || index >= allTimes.length || index === curTimeIdx) return
+  curTimeIdx = index
+  updateSliderUI()
+  rerender()
+}
+
+function renderTimelineTicks() {
+  const ticks = document.getElementById('time-ticks')
+  ticks.replaceChildren()
+  if (allTimes.length === 0) return
+
+  let previousDay = null
+  let dayGroup = -1
+  allTimes.forEach((iso, index) => {
+    const date = new Date(iso)
+    const day = date.toISOString().slice(0, 10)
+    const left = String(allTimes.length === 1 ? 50 : index / (allTimes.length - 1) * 100) + '%'
+    if (day !== previousDay) {
+      previousDay = day
+      dayGroup++
+      const label = document.createElement('span')
+      label.className = 'time-day'
+      label.style.left = left
+      label.textContent = String(date.getUTCDate()).padStart(2, '0') + '/' + String(date.getUTCMonth() + 1).padStart(2, '0')
+      ticks.append(label)
+    }
+    const tick = document.createElement('button')
+    tick.type = 'button'
+    tick.className = 'time-tick day-' + (dayGroup % 2 ? 'b' : 'a') + (index === curTimeIdx ? ' active' : '')
+    tick.style.left = left
+    tick.title = fmtUtc(date)
+    tick.setAttribute('aria-label', fmtUtc(date))
+    tick.addEventListener('click', () => selectTimeIndex(index))
+    ticks.append(tick)
+  })
+}
+
 function updateSliderUI() {
   const slider = document.getElementById('slider-time')
   const disp   = document.getElementById('time-display')
   const sec    = document.getElementById('time-secondary')
+  const prev   = document.getElementById('btn-time-prev')
+  const next   = document.getElementById('btn-time-next')
+  const start  = document.getElementById('time-start')
+  const end    = document.getElementById('time-end')
 
   if (allTimes.length === 0) {
     disp.textContent = '—'
     sec.textContent  = ''
     slider.disabled  = true
+    prev.disabled = true
+    next.disabled = true
+    start.textContent = '—'
+    end.textContent = '—'
+    renderTimelineTicks()
     return
   }
 
@@ -1017,6 +1063,11 @@ function updateSliderUI() {
   const iso = allTimes[curTimeIdx]
   disp.textContent = fmtUtc(new Date(iso))
   sec.textContent  = fmtRelative(iso)
+  start.textContent = fmtUtc(new Date(allTimes[0]))
+  end.textContent = fmtUtc(new Date(allTimes[allTimes.length - 1]))
+  prev.disabled = curTimeIdx === 0
+  next.disabled = curTimeIdx === allTimes.length - 1
+  renderTimelineTicks()
 }
 
 function ingestTimes(data) {
@@ -1036,6 +1087,7 @@ function ingestTimes(data) {
     curTimeIdx = futureIdx >= 0 ? futureIdx : 0
   }
   updateSliderUI()
+  if (!document.getElementById('provider-info-dialog').hidden) renderProviderInfo()
   return true
 }
 
@@ -1069,7 +1121,6 @@ async function discoverSources(attempt = 1) {
     setControlsDisabled(false)
     showStatus(null)
     updateDefaultBtn()
-    updatePanelSummary()
     refresh()
   } catch {
     // SignalK peut encore être en train de démarrer — réessayer avec backoff.
@@ -1094,6 +1145,153 @@ function updateDefaultBtn() {
   }
 }
 
+function selectedProviderName() {
+  const sel = document.getElementById('sel-source')
+  return (sel.selectedOptions[0]?.textContent ?? sel.value).replace(/ ★$/, '')
+}
+
+function providerLayerAvailability(provider) {
+  const has = { wind: false, gust: false, temp: false, cloud: false, precip: false, press: false }
+  let scanned = 0
+  for (const [key, entry] of memCache) {
+    if (!key.startsWith(provider + '|') || Date.now() - entry.ts >= CACHE_TTL) continue
+    try {
+      for (const f of entry.data) {
+        if (f.wind?.speedTrue != null)              has.wind   = true
+        if (f.wind?.gust != null)                   has.gust   = true
+        if (f.outside?.temperature != null)         has.temp   = true
+        if (f.outside?.cloudCover != null)          has.cloud  = true
+        if (f.outside?.precipitationVolume != null) has.precip = true
+        if (f.outside?.pressure != null)            has.press  = true
+        if (Object.values(has).every(Boolean)) break
+      }
+    } catch {}
+    if (Object.values(has).every(Boolean) || ++scanned >= 30) break
+  }
+  return has
+}
+
+// The weather API does not publish a capability manifest.  Inspect a bounded
+// sample of the forecasts already loaded for this provider so the information
+// sheet can also mention data that this map does not yet render.
+function providerUnsupportedLayers(provider) {
+  const layers = new Set()
+  const renderedOutsideFields = new Set(['temperature', 'cloudCover', 'precipitationVolume', 'pressure'])
+  let scanned = 0
+  for (const [key, entry] of memCache) {
+    if (!key.startsWith(provider + '|') || Date.now() - entry.ts >= CACHE_TTL) continue
+    try {
+      for (const f of entry.data) {
+        if (!f || typeof f !== 'object') continue
+        for (const [group, value] of Object.entries(f)) {
+          if (value == null || group === 'date' || group === 'wind') continue
+          if (group === 'outside' && typeof value === 'object') {
+            for (const [field, fieldValue] of Object.entries(value)) {
+              if (fieldValue != null && !renderedOutsideFields.has(field)) layers.add(`outside.${field}`)
+            }
+          } else {
+            layers.add(group)
+          }
+        }
+      }
+    } catch {}
+    if (++scanned >= 30) break
+  }
+  return Array.from(layers).sort().map(providerLayerLabel)
+}
+
+function providerLayerLabel(key) {
+  const labels = {
+    current: t.providerCurrent, currents: t.providerCurrent,
+    wave: t.providerWaves, waves: t.providerWaves,
+    swell: t.providerSwell, tide: t.providerTides, tides: t.providerTides,
+    'outside.relativeHumidity': t.providerHumidity,
+  }
+  if (labels[key]) return labels[key]
+  return key
+    .replace(/^outside\./, '')
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/^./, char => char.toUpperCase())
+}
+
+function setProviderInfoVisible(visible) {
+  const dialog = document.getElementById('provider-info-dialog')
+  if (visible) {
+    if (!dialog.contains(document.activeElement)) {
+      providerInfoReturnFocus = document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : document.getElementById('btn-provider-info')
+    }
+    dialog.hidden = false
+    requestAnimationFrame(() => document.getElementById('btn-close-provider').focus())
+    return
+  }
+  dialog.hidden = true
+  const trigger = providerInfoReturnFocus || document.getElementById('btn-provider-info')
+  providerInfoReturnFocus = null
+  if (trigger?.isConnected) trigger.focus()
+}
+
+function keepProviderInfoFocus(event) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    setProviderInfoVisible(false)
+    return
+  }
+  if (event.key !== 'Tab') return
+
+  const dialog = document.getElementById('provider-info-dialog')
+  const focusable = Array.from(dialog.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+    .filter(el => el.offsetParent !== null)
+  if (focusable.length === 0) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+function renderProviderInfo() {
+  const provider = document.getElementById('sel-source').value
+  if (!provider) return
+  const has = providerLayerAvailability(provider)
+  const layerLabels = {
+    wind: t.layerWind, gust: t.layerGust, temp: t.layerTemp,
+    cloud: t.layerCloud, precip: t.layerPrecip, press: t.layerPress,
+  }
+  const available = Object.entries(has).filter(([, value]) => value).map(([key]) => layerLabels[key])
+  const unsupported = providerUnsupportedLayers(provider)
+  const period = allTimes.length
+    ? `${fmtUtc(new Date(allTimes[0]))} — ${fmtUtc(new Date(allTimes[allTimes.length - 1]))}`
+    : t.providerNoData
+
+  document.getElementById('provider-info-title').textContent = selectedProviderName()
+  document.getElementById('provider-plugin-label').textContent = t.providerPlugin
+  document.getElementById('provider-plugin').textContent = provider
+  document.getElementById('provider-status-label').textContent = t.providerStatus
+  document.getElementById('provider-status').textContent = provider === defaultProviderId ? t.providerDefault : t.providerNotDefault
+  document.getElementById('provider-period-label').textContent = t.providerPeriod
+  document.getElementById('provider-period').textContent = period
+  document.getElementById('provider-steps-label').textContent = t.providerSteps
+  document.getElementById('provider-steps').textContent = allTimes.length ? t.providerStepCount(allTimes.length) : t.providerNoData
+  document.getElementById('provider-layers-label').textContent = t.providerLayers
+  const listedLayers = [...available, ...unsupported.map(label => `${label} *`)]
+  document.getElementById('provider-layers-summary').textContent = listedLayers.length ? listedLayers.join(', ') : t.providerNoData
+  document.getElementById('provider-layers-note').textContent = unsupported.length ? t.providerUnsupportedNote : ''
+  updateDefaultBtn()
+}
+
+function openProviderInfo() {
+  if (!document.getElementById('sel-source').value) return
+  renderProviderInfo()
+  setProviderInfoVisible(true)
+}
+
 async function setDefaultProvider(id) {
   const btn = document.getElementById('btn-set-default')
   btn.disabled = true
@@ -1107,6 +1305,10 @@ async function setDefaultProvider(id) {
       if (opt.value === id) opt.textContent += ' ★'
     }
     updateDefaultBtn()
+    if (!document.getElementById('provider-info-dialog').hidden && btn.style.display === 'none') {
+      document.getElementById('btn-close-provider').focus()
+    }
+    if (!document.getElementById('provider-info-dialog').hidden) renderProviderInfo()
   } catch (e) {
     showStatus(t.errSet(e.message))
     setTimeout(() => showStatus(null), 3000)
@@ -1185,33 +1387,13 @@ async function doRefresh() {
   if (gen !== refreshGen) return  // superseded pendant le fetch — ne pas écraser l'état
   renderHeatmap()
   updateLayerButtons()
+  if (!document.getElementById('provider-info-dialog').hidden) renderProviderInfo()
 }
 
 // ── Layer availability ────────────────────────────────────────────────────────
 function updateLayerButtons() {
   const provider = document.getElementById('sel-source').value
-  const has = { wind: false, gust: false, temp: false, cloud: false, precip: false, press: false }
-
-  let scanned = 0
-  for (const [key, entry] of memCache) {
-    if (!key.startsWith(provider + '|')) continue
-    if (Date.now() - entry.ts >= CACHE_TTL) continue
-    try {
-      for (const f of entry.data) {
-        if (f.wind?.speedTrue != null)              has.wind   = true
-        if (f.wind?.gust != null)                   has.gust   = true
-        if (f.outside?.temperature != null)         has.temp   = true
-        if (f.outside?.cloudCover != null)          has.cloud  = true
-        if (f.outside?.precipitationVolume != null) has.precip = true
-        if (f.outside?.pressure != null)            has.press  = true
-        if (has.wind && has.gust && has.temp && has.cloud && has.precip && has.press) break
-      }
-    } catch {}
-    if (has.wind && has.gust && has.temp && has.cloud && has.precip && has.press) break
-    // La disponibilité des champs est quasi homogène spatialement :
-    // un échantillon borné suffit, inutile de parcourir tout le cache.
-    if (++scanned >= 30) break
-  }
+  const has = providerLayerAvailability(provider)
 
   // Si aucun champ reconnu n'a été trouvé, garder tous les boutons visibles
   // (provider non encore chargé, format inconnu, hors zone…)
@@ -1310,8 +1492,10 @@ function showError(msg) {
 }
 
 function setControlsDisabled(disabled) {
-  document.getElementById('btn-refresh').disabled = disabled
   document.getElementById('slider-time').disabled = disabled
+  document.getElementById('btn-time-prev').disabled = disabled || curTimeIdx === 0
+  document.getElementById('btn-time-next').disabled = disabled || curTimeIdx === allTimes.length - 1
+  document.getElementById('btn-provider-info').disabled = disabled
   document.querySelectorAll('.layer-btn').forEach(b => { b.disabled = disabled })
 }
 
@@ -1350,18 +1534,11 @@ async function centerOnVessel() {
   } catch {}
 }
 
-// ── Panel collapse ────────────────────────────────────────────────────────────
-function updatePanelSummary() {
-  const sourceEl = document.getElementById('sel-source')
-  const provName = (sourceEl.selectedOptions[0]?.text ?? sourceEl.value ?? '—').replace(' ★', '')
-  const layerName = document.querySelector('.layer-btn.active')?.textContent?.trim() ?? '—'
-  document.getElementById('panel-summary').textContent = `${provName} · ${layerName}`
-}
-
-function setPanelCollapsed(collapsed) {
-  document.getElementById('panel').classList.toggle('collapsed', collapsed)
-  document.getElementById('btn-toggle-panel').textContent = collapsed ? '▸' : '▾'
-  try { localStorage.setItem('skwx_panel', collapsed ? '0' : '1') } catch {}
+// ── Legend visibility ─────────────────────────────────────────────────────────
+function setLegendVisible(visible) {
+  document.getElementById('legend').style.display = visible ? 'block' : 'none'
+  document.getElementById('btn-show-legend').style.display = visible ? 'none' : 'block'
+  try { localStorage.setItem('skwx_legend', visible ? '1' : '0') } catch {}
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
@@ -1369,17 +1546,36 @@ function setPanelCollapsed(collapsed) {
   document.documentElement.lang = LANG
   applyI18n()
   purgeLs()
+  updateSliderUI()
   // Persister les écritures en attente avant que l'onglet ne parte (localStorage = synchrone)
   window.addEventListener('pagehide', lsFlush)
   await centerOnVessel()
 
   updateLegend()
 
-  // Restaurer l'état collapsed et brancher le toggle
-  if (localStorage.getItem('skwx_panel') === '0') setPanelCollapsed(true)
-  document.getElementById('btn-toggle-panel').addEventListener('click', () => {
-    setPanelCollapsed(!document.getElementById('panel').classList.contains('collapsed'))
+  // The dock sits inside Leaflet's map element. Keep rapid taps on its controls
+  // from bubbling into Leaflet's double-click/touch zoom handlers.
+  const dock = document.getElementById('panel')
+  L.DomEvent.disableClickPropagation(dock)
+  L.DomEvent.disableScrollPropagation(dock)
+  dock.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation() })
+
+  const providerDialog = document.getElementById('provider-info-dialog')
+  L.DomEvent.disableClickPropagation(providerDialog)
+  L.DomEvent.disableScrollPropagation(providerDialog)
+  providerDialog.addEventListener('click', e => {
+    if (e.target === providerDialog) setProviderInfoVisible(false)
   })
+  providerDialog.addEventListener('keydown', keepProviderInfoFocus)
+  document.getElementById('btn-provider-info').setAttribute('aria-label', t.providerInfo)
+  document.getElementById('btn-provider-info').title = t.providerInfo
+  document.getElementById('btn-close-provider').setAttribute('aria-label', t.providerClose)
+  document.getElementById('btn-provider-info').addEventListener('click', openProviderInfo)
+  document.getElementById('btn-close-provider').addEventListener('click', () => setProviderInfoVisible(false))
+
+  if (localStorage.getItem('skwx_legend') === '0') setLegendVisible(false)
+  document.getElementById('btn-toggle-legend').addEventListener('click', () => setLegendVisible(false))
+  document.getElementById('btn-show-legend').addEventListener('click', () => setLegendVisible(true))
 
   document.querySelectorAll('.layer-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1390,17 +1586,16 @@ function setPanelCollapsed(collapsed) {
       currentStep  = null   // forcer un recalcul du pas au prochain refresh
       updateLegend()
       rerenderAll()
-      updatePanelSummary()
     })
   })
 
   map.on('moveend', refresh)   // moveend se déclenche aussi après un zoom
 
   document.getElementById('slider-time').addEventListener('input', e => {
-    curTimeIdx = parseInt(e.target.value, 10)
-    updateSliderUI()
-    rerender()
+    selectTimeIndex(parseInt(e.target.value, 10))
   })
+  document.getElementById('btn-time-prev').addEventListener('click', () => selectTimeIndex(curTimeIdx - 1))
+  document.getElementById('btn-time-next').addEventListener('click', () => selectTimeIndex(curTimeIdx + 1))
 
   document.getElementById('sel-source').addEventListener('change', () => {
     // Invalider tout de suite le batch en cours : sans cela, pendant les 350 ms de
@@ -1410,6 +1605,7 @@ function setPanelCollapsed(collapsed) {
     if (abortCtrl) abortCtrl.abort()
     showStatus(null)   // le batch aborté ne nettoiera pas son compteur de chargement
     updateDefaultBtn()
+    if (!providerDialog.hidden) renderProviderInfo()
     // Rétablir tous les boutons — on ne connaît pas encore les champs du nouveau provider
     document.querySelectorAll('.layer-btn').forEach(btn => btn.style.display = '')
     // Vider markers et heatmap — les données sont provider-spécifiques
@@ -1420,24 +1616,12 @@ function setPanelCollapsed(collapsed) {
     allTimes = []
     curTimeIdx = 0
     updateSliderUI()
-    updatePanelSummary()
     refresh()
   })
 
   document.getElementById('btn-set-default').addEventListener('click', () => {
     const id = document.getElementById('sel-source').value
     if (id) setDefaultProvider(id)
-  })
-
-  document.getElementById('btn-refresh').addEventListener('click', () => {
-    const bounds = map.getBounds()
-    const step   = autoStep()
-    for (const [lat, lon] of computeGrid(bounds, step)) {
-      const key = cacheKey(lat, lon)
-      memCache.delete(key)
-      lsRemove(key)
-    }
-    doRefresh()
   })
 
   // discoverSources() déclenche le premier refresh() après avoir sélectionné le provider

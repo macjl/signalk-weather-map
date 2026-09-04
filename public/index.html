@@ -192,6 +192,7 @@
       <button class="layer-btn active" data-layer="wind"   data-i18n="layerWind"></button>
       <button class="layer-btn"        data-layer="gust"   data-i18n="layerGust"></button>
       <button class="layer-btn"        data-layer="temp"   data-i18n="layerTemp"></button>
+      <button class="layer-btn"        data-layer="waterTemp" data-i18n="layerWaterTemp"></button>
       <button class="layer-btn"        data-layer="cloud"  data-i18n="layerCloud"></button>
       <button class="layer-btn"        data-layer="precip" data-i18n="layerPrecip"></button>
       <button class="layer-btn"        data-layer="press"  data-i18n="layerPress"></button>
@@ -252,7 +253,7 @@ const LANG = (navigator.language || 'en').toLowerCase().startsWith('fr') ? 'fr' 
 
 const I18N = {
   fr: {
-    layerWind: 'Vent', layerGust: 'Rafales', layerTemp: 'Température',
+    layerWind: 'Vent', layerGust: 'Rafales', layerTemp: 'Température', layerWaterTemp: 'Eau',
     layerCloud: 'Nébulosité', layerPrecip: 'Précipitations', layerPress: 'Pression',
     forecast: 'Prévision', source: 'Source', grid: 'Grille', refresh: 'Rafraîchir',
     setDefault: n => `Définir "${n}" par défaut`,
@@ -263,14 +264,15 @@ const I18N = {
     providerUnsupportedNote: '* disponible mais non affichable sur cette carte',
     providerCurrent: 'Courant', providerWaves: 'Vagues', providerSwell: 'Houle', providerTides: 'Marées', providerHumidity: 'Humidité',
     tipWind: 'Vent', tipGust: 'Rafales', tipKnots: 'nœuds', tipFrom: 'de',
-    tipTemp: 'Temp', tipPressure: 'MSLP', tipHumidity: 'Humidité',
+    tipTemp: 'Temp', tipWaterTemp: 'Eau', tipPressure: 'MSLP', tipHumidity: 'Humidité',
     tipCloud: 'Nuages', tipPrecip: 'Précip.',
     legendWind: 'Vent', legendGust: 'Rafales',
-    legendTemp: 'Température', legendCloud: 'Nébulosité', legendPrecip: 'Précipitations', legendPress: 'Pression',
+    legendTemp: 'Température', legendWaterTemp: 'Température de l’eau', legendCloud: 'Nébulosité', legendPrecip: 'Précipitations', legendPress: 'Pression',
     windDesc:   'Bleu → Vert → Jaune → Orange → Rouge selon la vitesse<br>Barbules affichées si zoom suffisant',
     gustDesc:   'Même échelle — basé sur la rafale maximale<br>Barbules affichées si zoom suffisant',
     barbDesc:   '½ trait = 5 nœuds &nbsp;|&nbsp; trait = 10 nœuds<br>fanion = 50 nœuds &nbsp;|&nbsp; ○ = calme (&lt;3 nœuds)',
     tempDesc:   'Bleu = froid &nbsp;|&nbsp; Vert = tempéré &nbsp;|&nbsp; Rouge = chaud',
+    waterTempDesc: 'Bleu = eau froide &nbsp;|&nbsp; Vert = eau tempérée &nbsp;|&nbsp; Rouge = eau chaude',
     cloudDesc:  'Transparent = ciel clair &nbsp;|&nbsp; Gris foncé = couvert à 100%',
     precipDesc: 'Transparent = sec &nbsp;|&nbsp; Bleu clair = légère pluie<br>Bleu → Violet → Rouge = intensité croissante',
     pressDesc:  'Bleu foncé (&lt;960) → Bleu → Cyan → Vert (1013) → Jaune → Orange → Rouge (&gt;1022 hPa)',
@@ -282,7 +284,7 @@ const I18N = {
     now: 'maintenant', ago: h => `il y a ${h}h`, inN: h => `dans ${h}h`,
   },
   en: {
-    layerWind: 'Wind', layerGust: 'Gusts', layerTemp: 'Temperature',
+    layerWind: 'Wind', layerGust: 'Gusts', layerTemp: 'Temperature', layerWaterTemp: 'Water',
     layerCloud: 'Cloudiness', layerPrecip: 'Precipitation', layerPress: 'Pressure',
     forecast: 'Forecast', source: 'Source', grid: 'Grid', refresh: 'Refresh',
     setDefault: n => `Set "${n}" as default`,
@@ -293,14 +295,15 @@ const I18N = {
     providerUnsupportedNote: '* available but not displayable on this map',
     providerCurrent: 'Current', providerWaves: 'Waves', providerSwell: 'Swell', providerTides: 'Tides', providerHumidity: 'Humidity',
     tipWind: 'Wind', tipGust: 'Gusts', tipKnots: 'kt', tipFrom: 'from',
-    tipTemp: 'Temp', tipPressure: 'MSLP', tipHumidity: 'Humidity',
+    tipTemp: 'Temp', tipWaterTemp: 'Water', tipPressure: 'MSLP', tipHumidity: 'Humidity',
     tipCloud: 'Cloud', tipPrecip: 'Precip.',
     legendWind: 'Wind', legendGust: 'Gusts',
-    legendTemp: 'Temperature', legendCloud: 'Cloudiness', legendPrecip: 'Precipitation', legendPress: 'Pressure',
+    legendTemp: 'Temperature', legendWaterTemp: 'Water temperature', legendCloud: 'Cloudiness', legendPrecip: 'Precipitation', legendPress: 'Pressure',
     windDesc:   'Blue → Green → Yellow → Orange → Red by speed<br>Barbs shown when zoomed in',
     gustDesc:   'Same scale — based on maximum gust<br>Barbs shown when zoomed in',
     barbDesc:   '½ bar = 5 kt &nbsp;|&nbsp; bar = 10 kt<br>pennant = 50 kt &nbsp;|&nbsp; ○ = calm (&lt;3 kt)',
     tempDesc:   'Blue = cold &nbsp;|&nbsp; Green = temperate &nbsp;|&nbsp; Red = hot',
+    waterTempDesc: 'Blue = cold water &nbsp;|&nbsp; Green = temperate water &nbsp;|&nbsp; Red = warm water',
     cloudDesc:  'Transparent = clear sky &nbsp;|&nbsp; Dark grey = overcast',
     precipDesc: 'Transparent = dry &nbsp;|&nbsp; Light blue = light rain<br>Blue → Purple → Red = increasing intensity',
     pressDesc:  'Dark blue (&lt;960) → Blue → Cyan → Green (1013) → Yellow → Orange → Red (&gt;1022 hPa)',
@@ -339,7 +342,7 @@ let   curTimeIdx = 0
 let   abortCtrl  = null
 let   defaultProviderId = null   // provider actuellement par défaut côté SignalK
 let   currentStep  = null        // pas de grille du dernier rendu
-let   currentLayer = 'wind'      // 'wind' | 'temp' | 'cloud'
+let   currentLayer = 'wind'      // wind, gust, air/water temperature, cloud, precipitation or pressure
 let   _heatmapLogged = false
 let   providerInfoReturnFocus = null
 
@@ -570,11 +573,25 @@ const TEMP_STOPS = [
   [ 60,200,  0,   0],
 ]
 
+// Sea-surface temperatures have a much narrower useful range than air
+// temperatures. Keeping dedicated stops makes cold and warm water gradients
+// readable without saturating normal ocean values.
+const WATER_TEMP_STOPS = [
+  [-2,  0,  30, 170],
+  [ 2,  0, 105, 220],
+  [ 8,  0, 195, 225],
+  [15, 45, 175,  95],
+  [22,225, 205,  30],
+  [28,255, 125,  20],
+  [35,205,  25,  20],
+]
+
 function extractValue(f, layer) {
   if (!f) return null
   if (layer === 'wind')   return f.wind?.speedTrue ?? null
   if (layer === 'gust')   return f.wind?.gust       ?? null
   if (layer === 'temp')   return f.outside?.temperature ?? null
+  if (layer === 'waterTemp') return f.water?.temperature ?? null
   if (layer === 'cloud')  return f.outside?.cloudCover  ?? null
   if (layer === 'precip') { const v = f.outside?.precipitationVolume; return v == null ? null : v * 1000 }
   if (layer === 'press')  { const v = f.outside?.pressure;            return v == null ? null : v / 100 }
@@ -596,11 +613,12 @@ function valueToRgba(value, layer) {
     if (k < 50) return [183, 28, 28,179]
     return             [123, 31,162,192]
   }
-  if (layer === 'temp') {
+  if (layer === 'temp' || layer === 'waterTemp') {
     const t = value - 273.15
+    const stops = layer === 'waterTemp' ? WATER_TEMP_STOPS : TEMP_STOPS
     let i = 0
-    while (i < TEMP_STOPS.length - 2 && TEMP_STOPS[i+1][0] <= t) i++
-    const s0 = TEMP_STOPS[i], s1 = TEMP_STOPS[i+1]
+    while (i < stops.length - 2 && stops[i+1][0] <= t) i++
+    const s0 = stops[i], s1 = stops[i+1]
     const f = Math.max(0, Math.min(1, (t - s0[0]) / (s1[0] - s0[0])))
     return [
       Math.round(s0[1] + (s1[1]-s0[1])*f),
@@ -901,7 +919,7 @@ function renderMarker(key, lat, lon, data) {
     barbLayers.set(key, r)
   }
 
-  // Couche de superposition : barbule (vent/rafale) ou étiquette texte (temp).
+  // Couche de superposition : barbule (vent/rafale) ou étiquette texte (températures).
   // Le canvas gère la couleur de fond pour toutes les couches.
   if (currentLayer === 'wind' || currentLayer === 'gust') {
     if (!f.wind) { const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) } return }
@@ -915,10 +933,11 @@ function renderMarker(key, lat, lon, data) {
       const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
     }
 
-  } else if (currentLayer === 'temp') {
-    if (f.outside?.temperature == null) { const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) } return }
+  } else if (currentLayer === 'temp' || currentLayer === 'waterTemp') {
+    const temperature = currentLayer === 'temp' ? f.outside?.temperature : f.water?.temperature
+    if (temperature == null) { const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) } return }
     if (large) {
-      const tempC = f.outside.temperature - 273.15
+      const tempC = temperature - 273.15
       const lbl   = (tempC >= 0 ? '+' : '') + tempC.toFixed(1) + '°'
       const lblHtml = `<div style="font-size:10px;font-weight:700;color:#fff;
         text-shadow:0 0 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);
@@ -962,6 +981,7 @@ function buildTooltip(lat, lon, f) {
   const dir    = f.wind?.directionTrue
   const gust   = f.wind?.gust
   const temp   = f.outside?.temperature
+  const waterTemp = f.water?.temperature
   const pres   = f.outside?.pressure
   const humid  = f.outside?.relativeHumidity
   const cloud  = f.outside?.cloudCover
@@ -973,6 +993,7 @@ function buildTooltip(lat, lon, f) {
   if (gust  != null)
     html += `${t.tipGust}&nbsp;: <b>${kt(gust).toFixed(0)} ${t.tipKnots}</b><br>`
   if (temp  != null) html += `${t.tipTemp}&nbsp;: ${(temp - 273.15).toFixed(1)}°C &nbsp; `
+  if (waterTemp != null) html += `${t.tipWaterTemp}&nbsp;: ${(waterTemp - 273.15).toFixed(1)}°C<br>`
   if (pres  != null) html += `${t.tipPressure}&nbsp;: ${(pres / 100).toFixed(0)} hPa<br>`
   if (humid != null) html += `${t.tipHumidity}&nbsp;: ${(humid * 100).toFixed(0)}% &nbsp; `
   if (cloud != null) html += `${t.tipCloud}&nbsp;: ${(cloud * 100).toFixed(0)}%<br>`
@@ -1151,7 +1172,7 @@ function selectedProviderName() {
 }
 
 function providerLayerAvailability(provider) {
-  const has = { wind: false, gust: false, temp: false, cloud: false, precip: false, press: false }
+  const has = { wind: false, gust: false, temp: false, waterTemp: false, cloud: false, precip: false, press: false }
   let scanned = 0
   for (const [key, entry] of memCache) {
     if (!key.startsWith(provider + '|') || Date.now() - entry.ts >= CACHE_TTL) continue
@@ -1160,6 +1181,7 @@ function providerLayerAvailability(provider) {
         if (f.wind?.speedTrue != null)              has.wind   = true
         if (f.wind?.gust != null)                   has.gust   = true
         if (f.outside?.temperature != null)         has.temp   = true
+        if (f.water?.temperature != null)           has.waterTemp = true
         if (f.outside?.cloudCover != null)          has.cloud  = true
         if (f.outside?.precipitationVolume != null) has.precip = true
         if (f.outside?.pressure != null)            has.press  = true
@@ -1176,7 +1198,10 @@ function providerLayerAvailability(provider) {
 // sheet can also mention data that this map does not yet render.
 function providerUnsupportedLayers(provider) {
   const layers = new Set()
-  const renderedOutsideFields = new Set(['temperature', 'cloudCover', 'precipitationVolume', 'pressure'])
+  const renderedFields = {
+    outside: new Set(['temperature', 'cloudCover', 'precipitationVolume', 'pressure']),
+    water: new Set(['temperature']),
+  }
   let scanned = 0
   for (const [key, entry] of memCache) {
     if (!key.startsWith(provider + '|') || Date.now() - entry.ts >= CACHE_TTL) continue
@@ -1185,9 +1210,9 @@ function providerUnsupportedLayers(provider) {
         if (!f || typeof f !== 'object') continue
         for (const [group, value] of Object.entries(f)) {
           if (value == null || group === 'date' || group === 'wind') continue
-          if (group === 'outside' && typeof value === 'object') {
+          if (renderedFields[group] && typeof value === 'object') {
             for (const [field, fieldValue] of Object.entries(value)) {
-              if (fieldValue != null && !renderedOutsideFields.has(field)) layers.add(`outside.${field}`)
+              if (fieldValue != null && !renderedFields[group].has(field)) layers.add(`${group}.${field}`)
             }
           } else {
             layers.add(group)
@@ -1206,6 +1231,9 @@ function providerLayerLabel(key) {
     wave: t.providerWaves, waves: t.providerWaves,
     swell: t.providerSwell, tide: t.providerTides, tides: t.providerTides,
     'outside.relativeHumidity': t.providerHumidity,
+    'water.current': t.providerCurrent, 'water.currents': t.providerCurrent,
+    'water.wave': t.providerWaves, 'water.waves': t.providerWaves,
+    'water.swell': t.providerSwell, 'water.tide': t.providerTides, 'water.tides': t.providerTides,
   }
   if (labels[key]) return labels[key]
   return key
@@ -1261,7 +1289,7 @@ function renderProviderInfo() {
   if (!provider) return
   const has = providerLayerAvailability(provider)
   const layerLabels = {
-    wind: t.layerWind, gust: t.layerGust, temp: t.layerTemp,
+    wind: t.layerWind, gust: t.layerGust, temp: t.layerTemp, waterTemp: t.layerWaterTemp,
     cloud: t.layerCloud, precip: t.layerPrecip, press: t.layerPress,
   }
   const available = Object.entries(has).filter(([, value]) => value).map(([key]) => layerLabels[key])
@@ -1465,6 +1493,8 @@ function updateLegend() {
     el.innerHTML = `<b>${t.legendGust}</b>${WIND_GRADIENT_HTML}${t.gustDesc}<br><span style="font-size:10px;color:#888">${t.barbDesc}</span>`
   } else if (currentLayer === 'temp') {
     el.innerHTML = `<b>${t.legendTemp}</b>${t.tempDesc}`
+  } else if (currentLayer === 'waterTemp') {
+    el.innerHTML = `<b>${t.legendWaterTemp}</b>${t.waterTempDesc}`
   } else if (currentLayer === 'cloud') {
     el.innerHTML = `<b>${t.legendCloud}</b>${t.cloudDesc}`
   } else if (currentLayer === 'precip') {

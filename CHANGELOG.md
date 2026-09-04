@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-09-04
+
+### Added
+- Sea-surface temperature layer, using the SignalK Weather API `water.temperature` field, with interpolated colour fill and numeric labels
+
+### Changed
+- Water temperature uses a dedicated −2 to 35 °C colour range, preserving contrast for typical sea-surface values
+- Provider information recognises water temperature as a displayable layer and keeps remaining water data correctly marked as non-rendered
+
 ## [0.3.0] — 2026-08-28
 
 ### Added

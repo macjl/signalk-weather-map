@@ -44,6 +44,14 @@ test('cache and render helpers are defined', () => {
   }
 })
 
+test('water temperature layer uses the SignalK water.temperature field', () => {
+  const html = fs.readFileSync(htmlPath, 'utf-8')
+  const src = inlineScripts()[0]
+  assert.match(html, /data-layer="waterTemp"/, 'water-temperature selector is present')
+  assert.match(src, /f\.water\?\.temperature/, 'water temperature is read from the weather API model')
+  assert.match(src, /WATER_TEMP_STOPS/, 'water temperatures use their dedicated colour range')
+})
+
 test('deferred localStorage writes are flushed at end of lifecycle', () => {
   const src = inlineScripts()[0]
   // After a completed fetch batch…

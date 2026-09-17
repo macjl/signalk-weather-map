@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-17
+
+### Added
+- MapLibre globe rendering for a geographically realistic global weather view
+- Forecast playback control with one-second looping playback and pause
+- Continuous wind and pressure colour scales, and denser forecast sampling at wide zoom levels
+
+### Changed
+- Reworked the weather renderer around an active request grid, native geographical features and bilinear colour interpolation
+- The previous weather view remains visible while a moved map loads its replacement
+- Provider coverage gaps are handled without treating valid empty responses as errors
+- Initial framing now uses a closer, fixed geographical area around the vessel instead of a screen-dependent fixed zoom
+
+### Fixed
+- Geographic orientation of wind barbs and the vessel marker during globe rotation and tilt
+- Stable polar grid alignment, bounded forecast-time selection and preservation of the first selected step
+- Staged weather snapshots keep colours and markers synchronized; unchanged markers are reused
+- Cancelled refreshes cannot start during navigation; requests have deadlines and bounded retries
+- Interpolation distinguishes failed requests from missing coverage; legends share the rendered colour scales
+- Startup remains usable when local storage or optional vessel-position requests are unavailable
+- Stable grid density during panning, globe clipping of weather markers, anti-meridian rendering and Safari gesture handling
+- Retry/status handling for transient forecast request failures
+
 ## [0.3.1] — 2026-09-04
 
 ### Added

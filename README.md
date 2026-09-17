@@ -1,6 +1,6 @@
 # signalk-weather-map
 
-A [SignalK](https://signalk.org) webapp that displays meteorological forecast data on an interactive map — wind barbs, temperature, cloudiness, precipitation, pressure and gusts, powered by any SignalK weather provider.
+A [SignalK](https://signalk.org) webapp that displays meteorological forecast data on an interactive MapLibre globe — wind barbs, temperature, sea-surface temperature, cloudiness, precipitation, pressure and gusts, powered by any SignalK weather provider.
 
 ![Weather Map screenshot](screenshots/weather-map.png)
 
@@ -9,13 +9,15 @@ A [SignalK](https://signalk.org) webapp that displays meteorological forecast da
 - **Wind barbs** — standard meteorological notation (½ bar = 5 kt, bar = 10 kt, pennant = 50 kt)
 - **Gusts** — same barb display based on gust speed
 - **Temperature** — colour-coded cells with numeric label (blue → green → yellow → red)
+- **Sea-surface temperature** — dedicated −2 to 35 °C colour scale with numeric labels
 - **Cloudiness** — transparency-based grey overlay (0 % = transparent, 100 % = dark grey)
 - **Precipitation** — colour-coded intensity (transparent → light blue → blue → purple → red)
 - **Pressure** — colour-coded cells with numeric hPa label (dark blue = storm/low < 960 → cyan → green ≈ 1013 → orange → dark red = anticyclone > 1022)
-- **Automatic grid density** — spacing adapts to zoom level (~40 px between points)
-- **Forecast time slider** — browse all forecast steps provided by the weather source
-- **Multi-provider support** — select any registered SignalK weather provider; set a default with one click
-- **Collapsible panel** — panel and legend collapse to a one-line summary (model + layer) for mobile use; state persisted across sessions
+- **3D globe** — MapLibre globe projection keeps weather patterns legible at high latitudes
+- **Automatic grid density** — stable spacing adapts to zoom level (~36 px between points)
+- **Forecast time slider** — browse all steps, or play them in a continuous loop
+- **Multi-provider support** — select any registered SignalK weather provider; inspect its coverage, steps and layers, and set it as default from its information panel
+- **Responsive control dock** — fixed two-row dock, full timeline and independently hideable legend
 - **Vessel position** — boat marker oriented to true heading (falls back to north if unavailable)
 - **Client-side cache** — 30-minute localStorage + memory cache; parallel batch fetching (15 concurrent)
 - **i18n** — UI language detected from the browser (French and English supported)
@@ -24,7 +26,8 @@ A [SignalK](https://signalk.org) webapp that displays meteorological forecast da
 
 - SignalK server with at least one weather provider plugin installed and enabled  
   (e.g. [signalk-grib-weather-provider](https://github.com/macjl/signalk-grib-weather-provider), Open-Meteo, etc.)
-- Node.js ≥ 12
+- Node.js ≥ 18
+- A browser with WebGL2 and hardware acceleration enabled
 
 ## Installation
 
@@ -68,6 +71,7 @@ Or open it from the SignalK dashboard → **Webapps**.
 | Wind | Barbs based on true wind speed |
 | Gusts | Barbs based on gust speed |
 | Temperature | Colour-coded cell fill with °C label |
+| Water | Sea-surface temperature colour fill with °C label |
 | Cloudiness | Grey transparency proportional to cloud cover |
 | Precipitation | Colour intensity proportional to rain volume |
 | Pressure | Colour-coded cell fill with hPa label (blue = low, red = high) |
@@ -78,7 +82,7 @@ Hover over any cell to see full data: wind speed & direction, gusts, temperature
 
 ### Provider selector
 
-If multiple weather providers are registered, select one from the **Source** dropdown. Click **Set as default** to make it the server-wide default.
+If multiple weather providers are registered, select one from the **Source** dropdown. Use the **i** button to inspect coverage, forecast steps and layers, or to make it the server-wide default.
 
 ## Weather API
 
@@ -97,7 +101,7 @@ Any provider that implements this API is compatible.
 ```sh
 git clone https://github.com/macjl/signalk-weather-map
 cd signalk-weather-map
-# Edit public/index.html — no build step required (vanilla JS + Leaflet CDN)
+# Edit public/index.html — no build step required (vanilla JS + MapLibre CDN)
 ```
 
 ## License

@@ -41,8 +41,8 @@ function makeStorage(quotaBytes) {
 
 // Build a sandbox exposing the cache functions from the webapp script.
 function loadCache(storage) {
-  const constants = html.match(/^const (?:CACHE_TTL|LS_PFX|LS_FLUSH_DELAY|LS_FLUSH_MAX_PENDING) *=.*$/gm)
-  assert.ok(constants && constants.length >= 4, 'cache constants found in script')
+  const constants = html.match(/^const (?:CACHE_TTL|NO_DATA_CACHE_TTL|LS_PFX|LS_FLUSH_DELAY|LS_FLUSH_MAX_PENDING) *=.*$/gm)
+  assert.ok(constants && constants.length >= 5, 'cache constants found in script')
   const section = html.match(/\/\/ ── Cache ─+\r?\n([\s\S]*?)\r?\n\/\/ ── Auto grid step/)[1]
 
   const sandbox = {
@@ -54,6 +54,7 @@ function loadCache(storage) {
     setInterval: () => 0,
     clearInterval: () => {},
     memCache: new Map(),
+    noDataCache: new Map(),
   }
   vm.createContext(sandbox)
   vm.runInNewContext(`${constants.join('\n')}\n${section}`, sandbox)
@@ -82,6 +83,19 @@ test('lsRemove drops both the pending write and the stored entry', () => {
   sb.lsRemove('p|1.00,2.00')
   sb.lsFlush()
   assert.strictEqual(Object.keys(storage).length, 0, 'pending write discarded')
+})
+
+test('valid empty provider coverage is cached briefly in memory only', () => {
+  const storage = makeStorage(1 << 20)
+  const sb = loadCache(storage)
+  const key = 'p|1.00,2.00'
+
+  sb.setNoDataCached(key)
+  assert.strictEqual(sb.hasNoDataCached(key), true, 'the empty response suppresses repeat requests')
+  assert.strictEqual(Object.keys(storage).length, 0, 'no-coverage is not persisted across sessions')
+
+  sb.noDataCache.set(key, Date.now() - 6 * 60_000)
+  assert.strictEqual(sb.hasNoDataCached(key), false, 'negative coverage expires promptly')
 })
 
 test('quota exceeded: expired entries are evicted, write succeeds', () => {

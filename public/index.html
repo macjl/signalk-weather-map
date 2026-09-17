@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Weather Map — SignalK</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.css" crossorigin=""/>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; font-family: system-ui, -apple-system, sans-serif; background: #1a2535; }
@@ -108,8 +108,16 @@
       border-radius: 12px;
     }
 
-    .wind-barb-icon { background: none !important; border: none !important; }
-    .leaflet-tooltip { font-size: 12px; line-height: 1.5; }
+    .wind-barb-icon { background: none !important; border: none !important; pointer-events: none; }
+    /* MapLibre marks DOM markers behind the globe but does not fully hide
+       custom marker elements by default. They must never be visible through
+       the planet. */
+    .maplibregl-marker-covered { opacity: 0 !important; visibility: hidden !important; }
+    .weather-tooltip-hit { width: 34px; height: 34px; background: transparent; cursor: crosshair; }
+    .maplibregl-popup-content { font-size: 12px; line-height: 1.5; padding: 8px 10px; }
+    #gpu-error { position: absolute; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 24px; background: #1a2535; color: #fff; text-align: center; font-size: 15px; line-height: 1.5; }
+    #gpu-error[hidden] { display: none; }
+    #gpu-error strong { display: block; margin-bottom: 8px; font-size: 18px; }
 
     /* Bottom control dock: a compact control row and a full-width timeline. */
     #panel { top: auto; right: 0; bottom: 0; left: 0; min-width: 0; border-radius: 12px 12px 0 0; padding: 8px 12px 9px; box-shadow: 0 -4px 16px rgba(0,0,0,.22); touch-action: manipulation; }
@@ -130,6 +138,7 @@
 
     #time-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
     .time-step-btn { width: 30px; height: 30px; border: 1px solid #c8d0dc; border-radius: 50%; background: #fff; color: #1a3a6b; font-size: 22px; line-height: 1; cursor: pointer; flex-shrink: 0; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+    #btn-time-play { font-size: 14px; font-weight: 800; }
     .time-step-btn:hover:not(:disabled) { background: #eaf1fb; }
     .time-step-btn:disabled { opacity: .35; cursor: default; }
     #time-area { position: relative; min-width: 0; flex: 1; }
@@ -179,6 +188,7 @@
 </head>
 <body>
 <div id="map"></div>
+<div id="gpu-error" role="alert" hidden><div><strong>Carte globe indisponible</strong>Cette visualisation nécessite un navigateur avec WebGL2 et une accélération graphique active.</div></div>
 
 <div id="panel">
   <div id="panel-header">
@@ -201,6 +211,8 @@
   </div>
   <div id="time-row">
     <button id="btn-time-prev" class="time-step-btn" aria-label="Previous forecast">‹</button>
+    <button id="btn-time-play" class="time-step-btn" type="button" aria-label="Play forecast" title="Play forecast">▶</button>
+    <button id="btn-time-next" class="time-step-btn" aria-label="Next forecast">›</button>
     <div id="time-area">
       <div id="time-meta">
         <span id="time-start" class="time-bound">—</span>
@@ -215,7 +227,6 @@
         <div id="time-ticks" aria-label="Forecast timeline"></div>
       </div>
     </div>
-    <button id="btn-time-next" class="time-step-btn" aria-label="Next forecast">›</button>
   </div>
 </div>
 
@@ -244,7 +255,7 @@
 
 <div id="status"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js" crossorigin=""></script>
 <script>
 'use strict'
 
@@ -276,7 +287,9 @@ const I18N = {
     cloudDesc:  'Transparent = ciel clair &nbsp;|&nbsp; Gris foncé = couvert à 100%',
     precipDesc: 'Transparent = sec &nbsp;|&nbsp; Bleu clair = légère pluie<br>Bleu → Violet → Rouge = intensité croissante',
     pressDesc:  'Bleu foncé (&lt;960) → Bleu → Cyan → Vert (1013) → Jaune → Orange → Rouge (&gt;1022 hPa)',
+    playTimeline: 'Lire la prévision', pauseTimeline: 'Mettre la lecture en pause',
     loading: (d, n) => `Chargement… ${d}/${n}`,
+    loadingRetry: (d, n, attempt, max) => `Chargement… ${d}/${n} — nouvelle tentative (${attempt}/${max})`,
     errSet: m => `Erreur : ${m}`,
     errFetch: n => `${n} point(s) inaccessible(s)`,
     errNoSource: 'Aucun fournisseur météo actif. Installez et activez un plugin fournisseur dans le tableau de bord SignalK.',
@@ -307,7 +320,9 @@ const I18N = {
     cloudDesc:  'Transparent = clear sky &nbsp;|&nbsp; Dark grey = overcast',
     precipDesc: 'Transparent = dry &nbsp;|&nbsp; Light blue = light rain<br>Blue → Purple → Red = increasing intensity',
     pressDesc:  'Dark blue (&lt;960) → Blue → Cyan → Green (1013) → Yellow → Orange → Red (&gt;1022 hPa)',
+    playTimeline: 'Play forecast', pauseTimeline: 'Pause forecast playback',
     loading: (d, n) => `Loading… ${d}/${n}`,
+    loadingRetry: (d, n, attempt, max) => `Loading… ${d}/${n} — retrying (${attempt}/${max})`,
     errSet: m => `Error: ${m}`,
     errFetch: n => `${n} point(s) failed to load`,
     errNoSource: 'No active weather provider. Install and enable a weather provider plugin in the SignalK dashboard.',
@@ -326,6 +341,7 @@ function applyI18n() {
 // ── Config ────────────────────────────────────────────────────────────────────
 const SK        = window.location.origin
 const CACHE_TTL = 30 * 60 * 1000
+const NO_DATA_CACHE_TTL = 5 * 60 * 1000
 const CONC      = 15
 const LS_PFX    = 'skwx2_'
 // Écritures localStorage regroupées : un stringify+setItem synchrone par point
@@ -335,34 +351,125 @@ const LS_FLUSH_MAX_PENDING = 100   // flush immédiat au-delà de N clés en att
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const memCache    = new Map()
+const noDataCache = new Map()   // short-lived, memory-only provider no-coverage results
 const barbLayers  = new Map()
 const labelLayers = new Map()   // étiquettes texte (layer temp)
+const markerSnapshots = new Map()
+const failedPoints = new Set() // only exhausted request failures permit a three-corner fallback
 let   allTimes   = []
 let   curTimeIdx = 0
+let   timelinePlaybackTimer = null
 let   abortCtrl  = null
 let   defaultProviderId = null   // provider actuellement par défaut côté SignalK
 let   currentStep  = null        // pas de grille du dernier rendu
+let   gridStepNeedsUpdate = true // only a real zoom may change grid density
 let   currentLayer = 'wind'      // wind, gust, air/water temperature, cloud, precipitation or pressure
-let   _heatmapLogged = false
 let   providerInfoReturnFocus = null
 
 // ── Map ───────────────────────────────────────────────────────────────────────
-const map = L.map('map', { zoomControl: true }).setView([48.5, 2.5], 6)
+// Keep the familiar OSM raster tiles as a deliberately simple background. The
+// globe and weather overlays are rendered by MapLibre/WebGL above it.
+let map = null
+let mapReady = false
+let heatOverlay = false
+let tooltipPopup = null
+// The only points allowed to reach the map. Keeping this separate from the
+// cross-view cache prevents an old viewport from leaking into a new one.
+let activeGrid = new Map()
+let activeGridGeneration = 0
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  maxZoom: 18,
-}).addTo(map)
+// Start with the same geographical area on every device rather than a fixed
+// zoom level. A fixed zoom shows much more of the world on a large display and
+// consequently requests many more forecast points. MapLibre may add margins
+// for portrait/wide aspect ratios, but this 6° square always remains the common
+// reference area around the vessel.
+const INITIAL_VIEW_SPAN = 6
+const INITIAL_VIEW_MAX_LAT = 84
 
-const barbGroup = L.layerGroup().addTo(map)
+function initialWeatherBounds(lon, lat) {
+  const half = INITIAL_VIEW_SPAN / 2
+  const south = Math.max(-INITIAL_VIEW_MAX_LAT, Math.min(INITIAL_VIEW_MAX_LAT - INITIAL_VIEW_SPAN, lat - half))
+  return [[lon - half, south], [lon + half, south + INITIAL_VIEW_SPAN]]
+}
 
-// Heatmap canvas overlay — lives below the SVG/marker panes so mouse events
-// pass through to the invisible tooltip rectangles above it.
-map.createPane('heatmapPane')
-map.getPane('heatmapPane').style.zIndex = 350
-map.getPane('heatmapPane').style.pointerEvents = 'none'
-let   heatOverlay = null
-const heatCanvas  = document.createElement('canvas')
+function fitInitialWeatherView(lon, lat) {
+  map.fitBounds(initialWeatherBounds(lon, lat), { duration: 0, maxZoom: 6.5 })
+}
+
+function showGpuFailure() {
+  document.getElementById('gpu-error').hidden = false
+  document.getElementById('panel').style.display = 'none'
+  document.getElementById('legend').style.display = 'none'
+  document.getElementById('btn-show-legend').style.display = 'none'
+}
+
+function markMapReady() {
+  if (mapReady) return
+  mapReady = true
+  refresh()
+}
+
+try {
+  map = new maplibregl.Map({
+    container: 'map',
+    bounds: initialWeatherBounds(2.5, 48.5),
+    fitBoundsOptions: { duration: 0, maxZoom: 6.5 },
+    // Be explicit: this webapp is a map, not a scrolling page. In particular,
+    // Safari must receive the touch gestures instead of interpreting them as
+    // browser navigation or page zoom.
+    dragPan: true,
+    dragRotate: true,
+    scrollZoom: true,
+    doubleClickZoom: true,
+    touchZoomRotate: true,
+    touchPitch: true,
+    keyboard: true,
+    style: {
+      version: 8,
+      sources: {
+        osm: {
+          type: 'raster',
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          maxzoom: 19,
+          attribution: '© OpenStreetMap contributors',
+        },
+      },
+      layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+    },
+  })
+  map.addControl(new maplibregl.NavigationControl(), 'top-left')
+  map.on('load', () => {
+    map.dragPan.enable()
+    map.dragRotate.enable()
+    map.scrollZoom.enable()
+    map.doubleClickZoom.enable()
+    map.touchZoomRotate.enable()
+    map.touchPitch.enable()
+    map.keyboard.enable()
+    map.getCanvas().style.touchAction = 'none'
+    map.getCanvasContainer().style.touchAction = 'none'
+    try {
+      map.setProjection({ type: 'globe' })
+    } catch (error) {
+      // Do not leave the whole weather application inert if a browser rejects
+      // the projection change after it has already created a usable WebGL map.
+      console.error('Unable to enable globe projection', error)
+      showStatus('Globe projection unavailable in this browser')
+    }
+    markMapReady()
+  })
+  // Some Safari/WebGL combinations report style readiness through idle before
+  // their load callback. This is deliberately a one-way readiness fallback.
+  map.once('idle', markMapReady)
+  map.on('error', event => {
+    if (maplibregl.GPUInitializationError && event.error instanceof maplibregl.GPUInitializationError) showGpuFailure()
+    else console.error(event.error)
+  })
+} catch (error) {
+  if (maplibregl.GPUInitializationError && error instanceof maplibregl.GPUInitializationError) showGpuFailure()
+  else throw error
+}
 
 // ── Cache ─────────────────────────────────────────────────────────────────────
 function lsGet(key) {
@@ -449,13 +556,15 @@ function lsEvictForSpace() {
 }
 
 function purgeLs() {
-  for (const k of Object.keys(localStorage)) {
+  let keys
+  try { keys = Object.keys(localStorage) } catch { lsDisabled = true; return }
+  for (const k of keys) {
     if (!k.startsWith(LS_PFX)) continue
     try {
       const e = JSON.parse(localStorage.getItem(k))
       if (Date.now() - e.ts > CACHE_TTL) { localStorage.removeItem(k); continue }
       if (!Array.isArray(e.data) || e.data.length === 0) localStorage.removeItem(k)
-    } catch { localStorage.removeItem(k) }
+    } catch { try { localStorage.removeItem(k) } catch { lsDisabled = true; return } }
   }
 }
 
@@ -477,9 +586,23 @@ function getCached(key) {
   }
   return null
 }
+
+function hasNoDataCached(key) {
+  const timestamp = noDataCache.get(key)
+  if (timestamp == null) return false
+  if (Date.now() - timestamp < NO_DATA_CACHE_TTL) return true
+  noDataCache.delete(key)
+  return false
+}
+
+function setNoDataCached(key) {
+  noDataCache.set(key, Date.now())
+}
+
 function setCached(key, data) {
   if (!Array.isArray(data) || data.length === 0) return  // ne pas cacher les résultats vides
   memCache.set(key, { ts: Date.now(), data })
+  noDataCache.delete(key)
   lsSet(key, data)   // écriture différée — voir lsFlush()
 }
 
@@ -488,28 +611,37 @@ function setCached(key, data) {
 setInterval(() => {
   const now = Date.now()
   for (const [k, e] of memCache) if (now - e.ts >= CACHE_TTL) memCache.delete(k)
+  for (const [k, ts] of noDataCache) if (now - ts >= NO_DATA_CACHE_TTL) noDataCache.delete(k)
 }, 5 * 60_000)
 
 // ── Auto grid step ────────────────────────────────────────────────────────────
-// Target ~40px between barbs. Steps in degrees.
-const GRID_STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10]
+// Target ~36px between barbs. The 4° tier makes the world view slightly denser
+// than the former 5° grid without a large increase in requests or polygons.
+const GRID_TARGET_PX = 36
+const GRID_STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 4, 5, 7.5, 10]
+// Forecasts stop short of the geographic poles: providers generally do not
+// offer useful regular grids beyond this latitude.
+const MAX_WEATHER_LAT = 84.75
+
+function degreesPerPixelAtZoom() {
+  // Globe getBounds() is a perspective footprint: it changes as the globe is
+  // rotated even when map.getZoom() does not. Use MapLibre's 512px world size
+  // instead, so one zoom level always selects one stable forecast grid step.
+  return 360 / (512 * (2 ** map.getZoom()))
+}
 
 function autoStep() {
-  const bounds = map.getBounds()
-  const size   = map.getSize()
-  const degPerPx = (bounds.getEast() - bounds.getWest()) / size.x
-  const raw = degPerPx * 40
+  const degPerPx = degreesPerPixelAtZoom()
+  const raw = degPerPx * GRID_TARGET_PX
   return GRID_STEPS.find(s => s >= raw) ?? 10
 }
 
-// Minimum cell pixel size below which barbs / text labels are hidden.
-const MIN_OVERLAY_PX = 38
+// Keep this below the 36px target grid spacing. Otherwise a correctly loaded
+// denser grid can hide every barb at the very zoom level that selected it.
+const MIN_OVERLAY_PX = 30
 
 function cellPixelSize() {
-  const bounds   = map.getBounds()
-  const size     = map.getSize()
-  const degPerPx = (bounds.getEast() - bounds.getWest()) / size.x
-  return (currentStep || 0.25) / degPerPx
+  return (currentStep || 0.25) / degreesPerPixelAtZoom()
 }
 
 // ── Wind barb SVG ─────────────────────────────────────────────────────────────
@@ -544,25 +676,19 @@ function barbSVG(speedMps, dirRad) {
 
   const deg = (dirRad * 180 / Math.PI).toFixed(1)
   return `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}"
-    style="transform:rotate(${deg}deg);transform-origin:${C}px ${C}px">${parts.join('')}</svg>`
+    style="transform:rotate(var(--weather-rotation,${deg}deg));transform-origin:${C}px ${C}px">${parts.join('')}</svg>`
 }
 
-const WIND_GRADIENT_HTML = `<div style="display:flex;height:7px;border-radius:2px;overflow:hidden;margin:3px 0 1px">
-  <div style="flex:1;background:#64b5f6"></div>
-  <div style="flex:1;background:#4caf50"></div>
-  <div style="flex:1;background:#cddc39"></div>
-  <div style="flex:1;background:#ff9800"></div>
-  <div style="flex:1;background:#f44336"></div>
-  <div style="flex:1;background:#7b1fa2"></div>
-</div>
-<div style="display:flex;justify-content:space-between;font-size:9px;color:#888;margin-bottom:2px">
-  <span>5</span><span>10</span><span>20</span><span>30</span><span>40</span><span>50+ kt</span>
-</div>`
+function gradientLegend(stops, ticks, unit) {
+  const min = ticks[0], max = ticks[ticks.length - 1]
+  const percent = value => (value - min) / (max - min) * 100
+  const colors = stops.filter(([value]) => value >= min && value <= max)
+    .map(([value, r, g, b]) => `rgb(${r},${g},${b}) ${percent(value)}%`).join(',')
+  const labels = ticks.map((value, i) => `<span style="position:absolute;left:${percent(value)}%;transform:translateX(${i === 0 ? '0' : i === ticks.length - 1 ? '-100%' : '-50%'})">${value}</span>`).join('')
+  return `<div style="height:7px;border-radius:2px;margin:3px 0 1px;background:linear-gradient(to right,${colors})"></div><div style="position:relative;height:14px;font-size:9px;color:#888">${labels}</div><div style="text-align:right;font-size:9px;color:#888">${unit}</div>`
+}
 
 // ── Canvas heatmap ────────────────────────────────────────────────────────────
-// Steps usable for lookup: representable in toFixed(2) → stepI = step*100 integer.
-const LOOKUP_STEPS_I  = [5, 10, 25, 50, 100, 200, 500, 1000]  // step * 100, integer
-
 // Temperature color stops [tempC, r, g, b] — mirrors tempColor() but int-valued.
 const TEMP_STOPS = [
   [-20,  0,  0, 200],
@@ -586,6 +712,33 @@ const WATER_TEMP_STOPS = [
   [35,205,  25,  20],
 ]
 
+// [value, r, g, b, alpha]. These retain the familiar reference colours while
+// supplying a continuous transition between them rather than hard colour bands.
+const WIND_COLOR_STOPS = [
+  [ 0,179,217,255,150], [ 5,100,181,246,160], [10, 76,175, 80,125],
+  [15,205,220, 57,138], [20,255,235, 59,150], [25,255,152,  0,163],
+  [30,244, 67, 54,176], [40,183, 28, 28,189], [50,123, 31,162,202],
+]
+
+const PRESSURE_COLOR_STOPS = [
+  [930, 20,  0,150,210], [960, 50, 80,220,191], [975, 80,150,230,178],
+  [990,100,200,210,155], [1005,110,200,140,140], [1013,160,210,60,150], [1018,240,130,20,165],
+  [1022,190, 30, 10,185], [1050,190, 30, 10,185],
+]
+const WIND_GRADIENT_HTML = gradientLegend(WIND_COLOR_STOPS, [0, 5, 10, 20, 30, 40, 50], 'kt')
+const PRESSURE_GRADIENT_HTML = gradientLegend(PRESSURE_COLOR_STOPS, [930, 960, 990, 1013, 1022], 'hPa')
+
+function interpolateColorStops(stops, value) {
+  if (value <= stops[0][0]) return stops[0].slice(1)
+  const last = stops[stops.length - 1]
+  if (value >= last[0]) return last.slice(1)
+  let i = 0
+  while (stops[i + 1][0] < value) i++
+  const s0 = stops[i], s1 = stops[i + 1]
+  const f = (value - s0[0]) / (s1[0] - s0[0])
+  return [1, 2, 3, 4].map(index => Math.round(s0[index] + (s1[index] - s0[index]) * f))
+}
+
 function extractValue(f, layer) {
   if (!f) return null
   if (layer === 'wind')   return f.wind?.speedTrue ?? null
@@ -603,15 +756,7 @@ function valueToRgba(value, layer) {
   if (value === null) return null
   if (layer === 'wind' || layer === 'gust') {
     const k = value * 1.94384
-    if (k <  5) return [179,217,255, 26]
-    if (k < 10) return [100,181,246, 89]
-    if (k < 15) return [ 76,175, 80,115]
-    if (k < 20) return [205,220, 57,128]
-    if (k < 25) return [255,235, 59,140]
-    if (k < 30) return [255,152,  0,153]
-    if (k < 40) return [244, 67, 54,166]
-    if (k < 50) return [183, 28, 28,179]
-    return             [123, 31,162,192]
+    return interpolateColorStops(WIND_COLOR_STOPS, k)
   }
   if (layer === 'temp' || layer === 'waterTemp') {
     const t = value - 273.15
@@ -637,196 +782,384 @@ function valueToRgba(value, layer) {
     return                  [183, 28, 28,204]
   }
   if (layer === 'press') {
-    // hPa — bleu foncé (dépression/tempête) → bleu → cyan → vert (normal ~1013) → jaune → orange → rouge (anticyclone)
-    if (value < 960)  return [ 20,  0,150,210]
-    if (value < 975)  return [ 50, 80,220,191]
-    if (value < 990)  return [ 80,150,230,178]
-    if (value < 1005) return [100,200,210,155]
-    if (value < 1013) return [160,210, 60,140]
-    if (value < 1022) return [240,130, 20,165]
-    return                  [190, 30, 10,185]
+    return interpolateColorStops(PRESSURE_COLOR_STOPS, value)
   }
   return null
 }
 
-function renderHeatmap() {
-  const bounds   = map.getBounds()
-  const size     = map.getSize()
-  const provider = document.getElementById('sel-source').value
-  if (!provider) return
-  const layer = currentLayer
+// Native MapLibre cells are clipped by the globe and retain their geographical
+// position after any pan or rotation. Forecast values are points on the active
+// grid, so subdivide the areas between them with bilinear interpolation instead
+// of displaying one large, flat-coloured square per forecast point.
+const WEATHER_SUBDIVISIONS = 4
+let displayedWeather = null
+let pendingWeather = null
+let queuedWeather = null
+let weatherSequence = 0
 
-  // 1. Pre-build integer-keyed value map from memCache (once, before pixel loop).
-  //    Key = latI*100000 + lonI  where latI = round(lat*100), lonI = round(lon*100).
-  //    This avoids per-pixel getCached() + pickForecast() + string allocation.
-  const valCache  = new Map()
-  const valPoints = []  // flat [latI, lonI, val, ...] for nearest-neighbour fallback
-  let providerEntries = 0
-  for (const [key, entry] of memCache) {
-    if (Date.now() - entry.ts >= CACHE_TTL) continue
-    if (!key.startsWith(provider + '|')) continue
-    providerEntries++
-    const coords = key.split('|')[1]
-    const comma  = coords.indexOf(',')
-    const latI   = Math.round(parseFloat(coords) * 100)
-    const lonI   = Math.round(parseFloat(coords.slice(comma + 1)) * 100)
-    const f      = pickForecast(entry.data)
-    if (!f) continue
-    const val = extractValue(f, layer)
-    if (val == null) continue
-    valCache.set(latI * 100000 + lonI, val)
-    valPoints.push(latI, lonI, val)
-  }
-  if (valCache.size === 0) {
-    if (providerEntries > 0) {
-      console.warn(`renderHeatmap: ${providerEntries} entries for "${provider}" but no value for layer "${layer}"`)
-      // Log first forecast to diagnose field structure
-      if (!_heatmapLogged) {
-        _heatmapLogged = true
-        for (const [key, entry] of memCache) {
-          if (!key.startsWith(provider + '|')) continue
-          const f = pickForecast(entry.data)
-          console.log(`[diag] first forecast for "${provider}":`, JSON.stringify(f))
-          break
-        }
-      }
-    }
-    return
-  }
-  _heatmapLogged = false  // reset when we DO have data
+function removeWeatherSource(id) {
+  if (map.getLayer(id)) map.removeLayer(id)
+  if (map.getSource(id)) map.removeSource(id)
+}
 
-  // 2. Bounding box of data points + margin (1.5× grid step) for nearest-neighbour guard.
-  let minLatI = Infinity, maxLatI = -Infinity, minLonI = Infinity, maxLonI = -Infinity
-  for (let vi = 0; vi < valPoints.length; vi += 3) {
-    const la = valPoints[vi], lo = valPoints[vi + 1]
-    if (la < minLatI) minLatI = la
-    if (la > maxLatI) maxLatI = la
-    if (lo < minLonI) minLonI = lo
-    if (lo > maxLonI) maxLonI = lo
-  }
-  // nnMargin in integer latI/lonI units (step × 100 × 1.5)
-  const nnMargin = Math.round((currentStep || autoStep()) * 150)
-
-  // 3. Render at ¼ resolution — browser upscales the img smoothly as an imageOverlay.
-  const W = Math.max(1, Math.ceil(size.x / 4))
-  const H = Math.max(1, Math.ceil(size.y / 4))
-  heatCanvas.width = W; heatCanvas.height = H
-  const ctx  = heatCanvas.getContext('2d')
-  const img  = ctx.createImageData(W, H)
-  const u32  = new Uint32Array(img.data.buffer)  // 1 write per pixel instead of 4
-  const N    = bounds.getNorth(), S = bounds.getSouth()
-  const We   = bounds.getWest(),  E = bounds.getEast()
-  const dLat = (N - S) / H,       dLon = (E - We) / W
-
-  let hasData = false
-
-  for (let py = 0; py < H; py++) {
-    const lat    = N - (py + 0.5) * dLat
-    const latx   = Math.round(lat * 100)
-
-    for (let ppx = 0; ppx < W; ppx++) {
-      const lon   = We + (ppx + 0.5) * dLon
-      const lonx  = Math.round((((lon % 360) + 540) % 360 - 180) * 100)
-
-      // Bilinear interpolation: try finest step first, fall back to coarser.
-      let rgba = null
-      for (let si = 0; si < LOOKUP_STEPS_I.length; si++) {
-        const sI    = LOOKUP_STEPS_I[si]
-        const latSI = Math.floor(latx / sI) * sI
-        const lonWI = Math.floor(lonx / sI) * sI
-        const latNI = latSI + sI
-        // Coin Est : au-delà de la couture, le point de grille est stocké sous -180.
-        const lonEI = lonWI + sI >= 18000 ? lonWI + sI - 36000 : lonWI + sI
-
-        const vSW = valCache.get(latSI * 100000 + lonWI)
-        if (vSW == null) continue
-        const vSE = valCache.get(latSI * 100000 + lonEI)
-        if (vSE == null) continue
-        const vNW = valCache.get(latNI * 100000 + lonWI)
-        if (vNW == null) continue
-        const vNE = valCache.get(latNI * 100000 + lonEI)
-        if (vNE == null) continue
-
-        const dx  = (lonx - lonWI) / sI
-        const dy  = (latx - latSI) / sI
-        const val = (1-dx)*(1-dy)*vSW + dx*(1-dy)*vSE + (1-dx)*dy*vNW + dx*dy*vNE
-        rgba = valueToRgba(val, layer)
-        break
-      }
-
-      // Nearest-neighbour fallback — limité à l'emprise des données + 1.5 pas de grille.
-      // Évite de colorier les zones sans couverture (hors emprise GRIB, etc.).
-      if (!rgba &&
-          latx >= minLatI - nnMargin && latx <= maxLatI + nnMargin &&
-          lonx >= minLonI - nnMargin && lonx <= maxLonI + nnMargin) {
-        let bestVal = null, bestDist2 = Infinity
-        for (let vi = 0; vi < valPoints.length; vi += 3) {
-          const dLa = latx - valPoints[vi], dLo = lonx - valPoints[vi + 1]
-          const d2  = dLa * dLa + dLo * dLo
-          if (d2 < bestDist2) { bestDist2 = d2; bestVal = valPoints[vi + 2] }
-        }
-        if (bestVal !== null) rgba = valueToRgba(bestVal, layer)
-      }
-
-      if (!rgba) continue
-      // Little-endian RGBA packed into Uint32: 0xAABBGGRR
-      u32[py * W + ppx] = (rgba[3] << 24) | (rgba[2] << 16) | (rgba[1] << 8) | rgba[0]
-      hasData = true
-    }
-  }
-
-  if (!hasData) return
-  ctx.putImageData(img, 0, 0)
-
-  // imageOverlay stretches the small canvas to the bounds with smooth browser scaling.
-  const url = heatCanvas.toDataURL()
-  if (heatOverlay) {
-    heatOverlay.setUrl(url).setBounds(bounds)
-  } else {
-    heatOverlay = L.imageOverlay(url, bounds, { pane: 'heatmapPane', interactive: false }).addTo(map)
+function cancelPendingWeather() {
+  queuedWeather = null
+  const pending = pendingWeather
+  if (!pending) return
+  pendingWeather = null
+  map.off('render', pending.onRender)
+  map.off('error', pending.onError)
+  clearTimeout(pending.deadline)
+  removeWeatherSource(pending.id)
+  if (displayedWeather && map.getLayer(displayedWeather.id)) {
+    map.setPaintProperty(displayedWeather.id, 'fill-opacity', 1)
   }
 }
 
+// Load tiles in an invisible layer while retaining the previous complete
+// snapshot. Show the new layer, then update its DOM markers in that render's
+// callback (before browser paint). No marker ever reads a newer live cache.
+function stageWeatherSnapshot(data, snapshot) {
+  const id = `weather-heatmap-${++weatherSequence}`
+  const pending = { id, snapshot, presenting: false }
+  pendingWeather = pending
+  const fail = error => {
+    if (pendingWeather !== pending) return
+    cancelPendingWeather()
+    showError(`Weather render failed: ${error.message ?? error}`)
+  }
+  pending.onError = event => { if (event.sourceId === id) fail(event.error) }
+  pending.onRender = () => {
+    if (pendingWeather !== pending) return
+    if (mapIsMoving || snapshot.generation !== refreshGen || snapshot.time !== curTime() || snapshot.layer !== currentLayer) {
+      cancelPendingWeather()
+      return
+    }
+    try {
+      if (!pending.presenting) {
+        if (!map.isSourceLoaded(id)) return
+        map.setPaintProperty(id, 'fill-opacity', 1)
+        if (displayedWeather && map.getLayer(displayedWeather.id)) map.setPaintProperty(displayedWeather.id, 'fill-opacity', 0)
+        pending.presenting = true
+        map.triggerRepaint()
+        return
+      }
+      // This frame has drawn the replacement; commit matching markers now.
+      renderActiveWeatherMarkers(snapshot)
+      const previous = displayedWeather
+      displayedWeather = { id, snapshot }
+      heatOverlay = true
+      pendingWeather = null
+      map.off('render', pending.onRender)
+      map.off('error', pending.onError)
+      clearTimeout(pending.deadline)
+      if (previous) removeWeatherSource(previous.id)
+      const next = queuedWeather
+      queuedWeather = null
+      if (next) scheduleHeatmapRender(next)
+    } catch (error) { fail(error) }
+  }
+  map.on('render', pending.onRender)
+  map.on('error', pending.onError)
+  pending.deadline = setTimeout(() => fail(new Error('Render timed out')), 15000)
+  try {
+    map.addSource(id, { type: 'geojson', data })
+    map.addLayer({ id, type: 'fill', source: id, paint: {
+      'fill-color': ['get', 'color'], 'fill-opacity': 0, 'fill-antialias': false,
+      'fill-opacity-transition': { duration: 0, delay: 0 },
+    } })
+  } catch (error) { fail(error) }
+}
+
+function renderHeatmap({ allowEmpty = true } = {}) {
+  if (!mapReady) return false
+  if (mapIsMoving || activeGridGeneration !== refreshGen) return false
+  if (pendingWeather) {
+    // Coalesce network progress into one follow-up; do not abort slow worker
+    // work every second or it may never finish on a mobile device.
+    queuedWeather = { allowEmpty: allowEmpty || queuedWeather?.allowEmpty === true, generation: refreshGen }
+    return false
+  }
+  const step = currentStep || autoStep()
+  const features = []
+  const values = new Map()
+  let interpolatedCells = 0
+  const failedCoordinates = new Set()
+  const snapshot = { generation: refreshGen, time: curTime(), layer: currentLayer, step, points: new Map() }
+
+  // Match positions by coordinate rather than cache key: cache keys include the
+  // provider, while the interpolation neighbours are spatial grid points.
+  function pointKey(lat, lon) {
+    const normalLon = ((lon % 360) + 540) % 360 - 180
+    return `${Math.round(lat * 1e6)},${Math.round(normalLon * 1e6)}`
+  }
+
+  for (const [key, point] of activeGrid) {
+    const data = getCached(key)
+    if (!data) {
+      if (failedPoints.has(key) && !hasNoDataCached(key)) failedCoordinates.add(pointKey(point.lat, point.lon))
+      continue
+    }
+    const forecast = pickForecast(data, snapshot.time)
+    if (forecast) snapshot.points.set(key, { ...point, forecast })
+    const value = extractValue(forecast, snapshot.layer)
+    if (value == null || !Number.isFinite(value)) continue
+    values.set(pointKey(point.lat, point.lon), value)
+  }
+
+  // Keep the feature count proportional to the current grid. At global scale
+  // two subdivisions already remove the coarse 5°/10° blocks; closer views get
+  // a denser gradient without making Safari build tens of thousands of shapes.
+  const subdivisions = step >= 4 ? 2 : step >= 1 ? 3 : WEATHER_SUBDIVISIONS
+
+  function addCell(west, east, south, north, color, opacity) {
+    if (west >= east || south >= north) return
+    features.push({
+      type: 'Feature',
+      properties: { color, opacity },
+      geometry: { type: 'Polygon', coordinates: [[
+        [west, north], [east, north], [east, south], [west, south], [west, north],
+      ]] },
+    })
+  }
+
+  function addWrappedCell(west, east, south, north, color, opacity) {
+    // Split a cell that crosses the anti-meridian; a single polygon spanning
+    // 179° to -179° would otherwise be interpreted as covering most Earth.
+    if (west < -180) {
+      addCell(-180, east, south, north, color, opacity)
+      addCell(west + 360, 180, south, north, color, opacity)
+    } else if (east > 180) {
+      addCell(west, 180, south, north, color, opacity)
+      addCell(-180, east - 360, south, north, color, opacity)
+    } else {
+      addCell(west, east, south, north, color, opacity)
+    }
+  }
+
+  function interpolateCellValue(corners, x, y) {
+    const weights = [
+      (1 - x) * (1 - y), x * (1 - y), (1 - x) * y, x * y,
+    ]
+    let available = 0
+    let totalWeight = 0
+    let weightedValue = 0
+    for (let i = 0; i < corners.length; i++) {
+      if (!Number.isFinite(corners[i])) continue
+      available++
+      totalWeight += weights[i]
+      weightedValue += corners[i] * weights[i]
+    }
+    // Three values preserve a local, continuous field when one request has
+    // ultimately failed. With fewer than three, leaving the area empty is more
+    // honest than extrapolating weather across an unknown region.
+    return available >= 3 && totalWeight > 0 ? weightedValue / totalWeight : null
+  }
+
+  for (const [key, point] of activeGrid) {
+    const { lat, lon } = point
+    const northLat = lat + step
+    if (northLat > MAX_WEATHER_LAT + 1e-9) continue
+    const eastLon = ((lon + step + 540) % 360) - 180
+    const vSW = values.get(pointKey(lat, lon))
+    const vSE = values.get(pointKey(lat, eastLon))
+    const vNW = values.get(pointKey(northLat, lon))
+    const vNE = values.get(pointKey(northLat, eastLon))
+    const corners = [vSW, vSE, vNW, vNE]
+    const cornerKeys = [pointKey(lat, lon), pointKey(lat, eastLon), pointKey(northLat, lon), pointKey(northLat, eastLon)]
+    // Empty coverage, missing layers/times and points still downloading must
+    // remain empty. Only a genuinely failed request can use the fallback.
+    if (corners.some((value, i) => !Number.isFinite(value) && !failedCoordinates.has(cornerKeys[i]))) continue
+
+    // Prefer exact bilinear interpolation from all four corners. A local,
+    // normalized three-corner fallback avoids a large gap from one exhausted
+    // request while never consulting a previous view or provider.
+    if (corners.filter(Number.isFinite).length < 3) continue
+    interpolatedCells++
+
+    for (let y = 0; y < subdivisions; y++) {
+      const y0 = y / subdivisions
+      const y1 = (y + 1) / subdivisions
+      const centreY = (y0 + y1) / 2
+      const south = lat + y0 * step
+      const north = lat + y1 * step
+
+      for (let x = 0; x < subdivisions; x++) {
+        const x0 = x / subdivisions
+        const x1 = (x + 1) / subdivisions
+        const centreX = (x0 + x1) / 2
+        // Bilinear interpolation at the centre of each geographical sub-cell.
+        // With all corners it returns the exact usual bilinear field.
+        const value = interpolateCellValue(corners, centreX, centreY)
+        const rgba = valueToRgba(value, currentLayer)
+        if (!rgba) continue
+
+        const west = lon + x0 * step
+        const east = lon + x1 * step
+        // Put per-cell alpha in colour so showing a staged layer only changes
+        // a constant opacity. Changing a data-driven opacity expression would
+        // reload its worker buckets and invalidate the readiness check.
+        const color = `rgba(${rgba[0]},${rgba[1]},${rgba[2]},${rgba[3] / 255})`
+        addWrappedCell(west, east, south, north, color, rgba[3] / 255)
+      }
+    }
+  }
+
+  const data = { type: 'FeatureCollection', features }
+  // A provisional refresh must not erase a useful prior layer merely because
+  // its first few responses cannot form a complete interpolated cell yet.
+  if (!allowEmpty && interpolatedCells === 0) return false
+  stageWeatherSnapshot(data, snapshot)
+  return true
+}
+
+// Keep the current view during the gesture itself. Once the camera is still,
+// partial results may be revealed at a bounded cadence while the replacement
+// batch continues downloading.
+const HEATMAP_IDLE_DELAY = 0
+const PROGRESSIVE_RENDER_INTERVAL = 1000
+let heatmapTimer = null
+let heatmapFrame = null
+let mapIsMoving = false
+let progressiveRenderTimer = null
+let progressiveRenderFrame = null
+let progressiveLastRender = 0
+
+function cancelScheduledHeatmap() {
+  clearTimeout(heatmapTimer)
+  if (heatmapFrame != null) cancelAnimationFrame(heatmapFrame)
+  heatmapTimer = null
+  heatmapFrame = null
+}
+
+function scheduleHeatmapRender({ delay = HEATMAP_IDLE_DELAY, generation = refreshGen, allowEmpty = true } = {}) {
+  cancelScheduledHeatmap()
+  if (mapIsMoving) return
+  heatmapTimer = setTimeout(() => {
+    heatmapTimer = null
+    heatmapFrame = requestAnimationFrame(() => {
+      heatmapFrame = null
+      if (mapIsMoving || generation !== refreshGen) return
+      renderHeatmap({ allowEmpty })
+    })
+  }, delay)
+}
+
+function cancelProgressiveWeatherRender() {
+  clearTimeout(progressiveRenderTimer)
+  if (progressiveRenderFrame != null) cancelAnimationFrame(progressiveRenderFrame)
+  progressiveRenderTimer = null
+  progressiveRenderFrame = null
+}
+
+function renderActiveWeatherMarkers(snapshot) {
+  const large = snapshot.step / degreesPerPixelAtZoom() >= MIN_OVERLAY_PX
+  for (const key of barbLayers.keys()) if (!snapshot.points.has(key)) removeMarker(key)
+  for (const [key, { lat, lon, forecast }] of snapshot.points) {
+    const previous = markerSnapshots.get(key)
+    if (previous?.forecast === forecast && previous.layer === snapshot.layer && previous.large === large) continue
+    renderMarker(key, lat, lon, forecast, snapshot.layer, large)
+    markerSnapshots.set(key, { forecast, layer: snapshot.layer, large })
+  }
+}
+
+// At first load, expose a useful partial picture, but never rebuild markers or
+// GeoJSON for every individual request. This keeps Safari responsive and makes
+// a batch of hundreds of points visually progress about once per second.
+function scheduleProgressiveWeatherRender(generation) {
+  if (mapIsMoving || generation !== refreshGen) return
+  // The timeout hands off to a browser frame. Keep coalescing responses during
+  // that handoff too: Safari may receive many responses before its next paint.
+  // Otherwise each response queues a full redraw and only the last is tracked
+  // for cancellation.
+  if (progressiveRenderTimer != null || progressiveRenderFrame != null) return
+  const elapsed = Date.now() - progressiveLastRender
+  const delay = Math.max(0, PROGRESSIVE_RENDER_INTERVAL - elapsed)
+  progressiveRenderTimer = setTimeout(() => {
+    progressiveRenderTimer = null
+    progressiveRenderFrame = requestAnimationFrame(() => {
+      progressiveRenderFrame = null
+      if (mapIsMoving || generation !== refreshGen || activeGridGeneration !== generation) return
+      progressiveLastRender = Date.now()
+      // Only replace old colours and barbs together once enough new points
+      // form at least one interpolated cell. This prevents a blank heatmap
+      // between the start of a large request and its first useful result.
+      renderHeatmap({ allowEmpty: false })
+    })
+  }, delay)
+}
+
 // ── Fetch ─────────────────────────────────────────────────────────────────────
-async function fetchPoint(lat, lon, source, signal) {
+async function fetchWithTimeout(url, { signal, timeout = 15000, ...options } = {}, read = r => r.json()) {
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  let timedOut = false
+  if (signal?.aborted) abort()
+  else signal?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(() => { timedOut = true; controller.abort() }, timeout)
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal })
+    if (!response.ok) {
+      const error = new Error(`HTTP ${response.status}`)
+      error.permanent = response.status >= 400 && response.status < 500 && response.status !== 429
+      throw error
+    }
+    // The deadline also covers downloading/parsing the response body.
+    return await read(response)
+  } catch (error) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    if (timedOut) throw new Error('Request timed out')
+    throw error
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', abort)
+  }
+}
+
+async function fetchPoint(lat, lon, source, signal, onRetry = null) {
   const key = cacheKey(lat, lon, source)
   const hit = getCached(key)
   if (hit) return { key, lat, lon, data: hit }
+  if (hasNoDataCached(key)) return { key, lat, lon, data: [] }
 
   const url = new URL(`${SK}/signalk/v2/api/weather/forecasts/point`)
   url.searchParams.set('lat', lat.toFixed(4))
   url.searchParams.set('lon', lon.toFixed(4))
   if (source) url.searchParams.set('provider', source)
 
-  const MAX_ATTEMPTS = 3
+  const MAX_ATTEMPTS = 4
   let delay = 500  // ms, doublé à chaque tentative
+  let lastError = null
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-    let r = null
     try {
-      r = await fetch(url.toString(), { signal })
-    } catch (e) {
-      // Abort : propager. Erreur réseau (TypeError) : retryable, comme un 5xx.
-      if (signal.aborted || e instanceof DOMException) throw e
-    }
-    if (r) {
-      if (r.ok) {
-        const data = await r.json()
-        setCached(key, data)
-        return { key, lat, lon, data }
-      }
-      // 4xx (sauf 429) : erreur permanente, inutile de réessayer
-      if (r.status >= 400 && r.status < 500 && r.status !== 429) throw new Error(r.status)
+      const data = await fetchWithTimeout(url.toString(), { signal })
+      // A valid empty array is provider no-coverage, not a request failure.
+      // Malformed responses remain retryable through the catch below.
+      if (!Array.isArray(data)) throw new Error('invalid forecast response')
+      if (data.length > 0) setCached(key, data)
+      else setNoDataCached(key)
+      return { key, lat, lon, data }
+    } catch (error) {
+      // Abort : propager. Réseau, JSON invalide, 5xx et 429 restent
+      // réessayables. Les 4xx permanents n'occupent pas inutilement
+      // les workers jusqu'à l'épuisement des tentatives.
+      if (signal.aborted || error.name === 'AbortError') throw error
+      if (error.permanent) throw error
+      lastError = error
     }
     if (attempt < MAX_ATTEMPTS) {
+      onRetry?.({ attempt: attempt + 1, maxAttempts: MAX_ATTEMPTS })
       await new Promise((res, rej) => {
-        const tid = setTimeout(res, delay)
-        signal.addEventListener('abort', () => { clearTimeout(tid); rej(new DOMException('Aborted', 'AbortError')) }, { once: true })
+        const abort = () => { clearTimeout(tid); rej(new DOMException('Aborted', 'AbortError')) }
+        const tid = setTimeout(() => { signal.removeEventListener('abort', abort); res() }, delay)
+        if (signal.aborted) abort()
+        else signal.addEventListener('abort', abort, { once: true })
       })
       delay *= 2
     }
   }
-  throw new Error('max retries exceeded')
+  throw lastError ?? new Error('max retries exceeded')
 }
 
 async function fetchBatch(points, source, onResult) {
@@ -835,13 +1168,17 @@ async function fetchBatch(points, source, onResult) {
   if (abortCtrl) abortCtrl.abort()
   abortCtrl = new AbortController()
   const sig = abortCtrl.signal
+  showStatus(t.loading(done, total))
 
   async function worker() {
     while (i < points.length && !sig.aborted) {
       const [lat, lon] = points[i++]
       try {
-        const res = await fetchPoint(lat, lon, source, sig)
+        const res = await fetchPoint(lat, lon, source, sig, ({ attempt, maxAttempts }) => {
+          if (!sig.aborted) showStatus(t.loadingRetry(done, total, attempt, maxAttempts))
+        })
         if (!sig.aborted) {
+          failedPoints.delete(res.key)
           if (res.data.length > 0) onResult(res)
           done++
           showStatus(t.loading(done, total))
@@ -849,7 +1186,11 @@ async function fetchBatch(points, source, onResult) {
       } catch (e) {
         if (!sig.aborted) {
           done++
-          if (!(e instanceof DOMException)) failed++
+          if (e.name !== 'AbortError') {
+            failed++
+            failedPoints.add(cacheKey(lat, lon, source))
+          }
+          showStatus(t.loading(done, total))
         }
       }
     }
@@ -864,16 +1205,21 @@ async function fetchBatch(points, source, onResult) {
 
 // ── Grid ──────────────────────────────────────────────────────────────────────
 function computeGrid(bounds, step) {
-  const S = Math.floor(bounds.getSouth() / step) * step
-  const N = Math.ceil(bounds.getNorth() / step) * step
-  const W = Math.floor(bounds.getWest() / step) * step
+  // Interpolation needs the north/east neighbours of every visible cell. Ask
+  // for one extra grid ring on every side so a viewport edge (and a small view
+  // narrower than one cell) is still backed by four forecast corners.
+  const GRID_EDGE_MARGIN = 1
+  const lastLatitudeIndex = Math.floor(MAX_WEATHER_LAT / step)
+  const S = Math.round(Math.max(-lastLatitudeIndex, Math.floor(bounds.getSouth() / step) - GRID_EDGE_MARGIN) * step * 1e6) / 1e6
+  const N = Math.round(Math.min( lastLatitudeIndex, Math.ceil(bounds.getNorth() / step) + GRID_EDGE_MARGIN) * step * 1e6) / 1e6
+  const W = Math.floor(bounds.getWest() / step) * step - GRID_EDGE_MARGIN * step
   // Cap at one full circumference to avoid duplicates when view wraps antimeridian.
   // Subtract half-step so the last generated lon doesn't wrap back to W after normalization.
   // Normalize each lon to [-180, 180) so cache keys stay canonical.
-  const E = Math.min(Math.ceil(bounds.getEast() / step) * step, W + 360 - step * 0.5)
+  const E = Math.min(Math.ceil(bounds.getEast() / step) * step + GRID_EDGE_MARGIN * step, W + 360 - step * 0.5)
   const pts = []
   for (let lat = S; lat <= N + 1e-9; lat = Math.round((lat + step) * 1e6) / 1e6) {
-    if (lat < -90 || lat > 90) continue
+    if (lat < -MAX_WEATHER_LAT || lat > MAX_WEATHER_LAT) continue
     for (let lon = W; lon <= E + 1e-9; lon = Math.round((lon + step) * 1e6) / 1e6) {
       const nLon = ((lon % 360) + 540) % 360 - 180
       pts.push([lat, nLon])
@@ -885,95 +1231,146 @@ function computeGrid(bounds, step) {
 // ── Barb rendering ────────────────────────────────────────────────────────────
 function curTime() { return allTimes[curTimeIdx] ?? null }
 
-function pickForecast(data) {
+function pickForecast(data, time = curTime()) {
   if (!data || data.length === 0) return null
-  const t = curTime()
-  if (!t) return data[0]
-  const target = Date.parse(t)
-  let best = null, bestDiff = Infinity
+  if (!time) return data.find(f => f && Number.isFinite(Date.parse(f.date))) ?? null
+  const target = Date.parse(time)
+  if (!Number.isFinite(target)) return null
+  let best = null, bestDiff = Infinity, first = Infinity, last = -Infinity
   for (const f of data) {
-    // _ts : timestamp mémoïsé sur l'objet forecast (appelé ~3×/s par entrée du cache)
-    const d = Math.abs((f._ts ?? (f._ts = Date.parse(f.date))) - target)
+    const ts = Date.parse(f?.date)
+    if (!Number.isFinite(ts)) continue
+    first = Math.min(first, ts)
+    last = Math.max(last, ts)
+    const d = Math.abs(ts - target)
     if (d < bestDiff) { bestDiff = d; best = f }
   }
-  return best
+  // Never extend coverage past either endpoint. Inside coverage, tolerate at
+  // most half a normal three-hour step; larger gaps remain explicitly empty.
+  return target >= first && target <= last && bestDiff <= 90 * 60_000 ? best : null
 }
 
-// Dispatcher — gère les tooltips (rectangle invisible) + barbules/étiquettes.
-// Les couleurs sont gérées par renderHeatmap() via le canvas.
-function renderMarker(key, lat, lon, data) {
-  const f = pickForecast(data)
-  if (!f) { removeMarker(key); return }
-  const tip  = buildTooltip(lat, lon, f)
-  const half = (currentStep || 0.25) / 2
-  const cellBounds = [[lat - half, lon - half], [lat + half, lon + half]]
-  const large = cellPixelSize() >= MIN_OVERLAY_PX
+// DOM markers preserve the existing barbs and labels while the canvas source is
+// draped over the globe by MapLibre. A transparent marker supplies the tooltip.
+function clearVisualMarker(key) {
+  const marker = labelLayers.get(key)
+  if (marker) { marker.remove(); labelLayers.delete(key) }
+}
 
-  // Rectangle invisible au pas courant : sert uniquement de cible pour le tooltip.
-  const tipStyle = { fillOpacity: 0.01, fillColor: '#fff', stroke: false, weight: 0 }
-  if (barbLayers.has(key)) {
-    barbLayers.get(key).unbindTooltip().bindTooltip(tip)
-  } else {
-    const r = L.rectangle(cellBounds, tipStyle).addTo(barbGroup)
-    r.bindTooltip(tip)
-    barbLayers.set(key, r)
+function clearWeatherMarkers() {
+  if (tooltipPopup) { tooltipPopup.remove(); tooltipPopup = null }
+  for (const marker of barbLayers.values()) marker.remove()
+  for (const marker of labelLayers.values()) marker.remove()
+  barbLayers.clear()
+  labelLayers.clear()
+  markerSnapshots.clear()
+}
+
+// Project a short geodesic through the point in both directions. Unlike simply
+// subtracting map bearing, this also follows local north near the globe edge
+// and with a tilted camera. These calculations do not fetch/rebuild forecasts.
+function projectedBearing(lat, lon, bearing) {
+  const rad = Math.PI / 180, phi = lat * rad, theta = bearing * rad
+  function point(distance) {
+    const latitude = Math.asin(Math.sin(phi) * Math.cos(distance) + Math.cos(phi) * Math.sin(distance) * Math.cos(theta))
+    const longitude = lon + Math.atan2(Math.sin(theta) * Math.sin(distance) * Math.cos(phi), Math.cos(distance) - Math.sin(phi) * Math.sin(latitude)) / rad
+    return map.project([longitude, latitude / rad])
   }
+  const a = point(-0.00001), b = point(0.00001)
+  return Math.atan2(b.x - a.x, a.y - b.y) / rad
+}
 
-  // Couche de superposition : barbule (vent/rafale) ou étiquette texte (températures).
-  // Le canvas gère la couleur de fond pour toutes les couches.
-  if (currentLayer === 'wind' || currentLayer === 'gust') {
-    if (!f.wind) { const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) } return }
-    if (large) {
-      const speed = currentLayer === 'wind' ? (f.wind.speedTrue ?? 0) : (f.wind.gust ?? 0)
-      const icon  = L.divIcon({ html: barbSVG(speed, f.wind.directionTrue ?? 0),
-        className: 'wind-barb-icon', iconSize: [56, 56], iconAnchor: [28, 28] })
-      if (labelLayers.has(key)) { labelLayers.get(key).setIcon(icon) }
-      else { labelLayers.set(key, L.marker([lat, lon], { icon, interactive: false }).addTo(barbGroup)) }
-    } else {
-      const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
+function orientMarker(marker) {
+  const element = marker.getElement()
+  if (element.weatherBearing == null) return
+  const angle = projectedBearing(element.weatherLat, element.weatherLon, element.weatherBearing)
+  if (Number.isFinite(angle)) element.style.setProperty('--weather-rotation', `${angle}deg`)
+}
+
+function orientWeatherMarkers() {
+  for (const marker of labelLayers.values()) orientMarker(marker)
+  if (vesselMarker) orientMarker(vesselMarker)
+}
+
+function setTooltipMarker(key, lat, lon, html) {
+  let marker = barbLayers.get(key)
+  if (!marker) {
+    const element = document.createElement('div')
+    element.className = 'weather-tooltip-hit'
+    element.setAttribute('aria-label', 'Weather information')
+    const show = () => {
+      if (!mapReady) return
+      if (tooltipPopup) tooltipPopup.remove()
+      tooltipPopup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: 10 })
+        .setLngLat([element.weatherLon, element.weatherLat])
+        .setHTML(element.weatherHtml)
+        .addTo(map)
     }
+    element.addEventListener('mouseenter', show)
+    element.addEventListener('click', show)
+    element.addEventListener('mouseleave', () => {
+      if (tooltipPopup) { tooltipPopup.remove(); tooltipPopup = null }
+    })
+    marker = new maplibregl.Marker({ element, anchor: 'center', opacityWhenCovered: 0 }).setLngLat([lon, lat]).addTo(map)
+    barbLayers.set(key, marker)
+  }
+  const element = marker.getElement()
+  element.weatherLat = lat
+  element.weatherLon = lon
+  element.weatherHtml = html
+}
 
-  } else if (currentLayer === 'temp' || currentLayer === 'waterTemp') {
-    const temperature = currentLayer === 'temp' ? f.outside?.temperature : f.water?.temperature
-    if (temperature == null) { const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) } return }
-    if (large) {
-      const tempC = temperature - 273.15
-      const lbl   = (tempC >= 0 ? '+' : '') + tempC.toFixed(1) + '°'
-      const lblHtml = `<div style="font-size:10px;font-weight:700;color:#fff;
-        text-shadow:0 0 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);
-        white-space:nowrap;pointer-events:none;line-height:1">${lbl}</div>`
-      const lblIcon = L.divIcon({ html: lblHtml, className: 'wind-barb-icon', iconSize: [40, 14], iconAnchor: [20, 7] })
-      if (labelLayers.has(key)) { labelLayers.get(key).setIcon(lblIcon) }
-      else { labelLayers.set(key, L.marker([lat, lon], { icon: lblIcon, interactive: false }).addTo(barbGroup)) }
-    } else {
-      const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
-    }
+function setVisualMarker(key, lat, lon, html, width, height, bearing = null) {
+  let marker = labelLayers.get(key)
+  if (!marker) {
+    const element = document.createElement('div')
+    element.className = 'wind-barb-icon'
+    // MapLibre requires a position before addTo(); unlike Leaflet it does not
+    // accept an unpositioned marker even for a single render frame.
+    marker = new maplibregl.Marker({ element, anchor: 'center', opacityWhenCovered: 0 }).setLngLat([lon, lat]).addTo(map)
+    labelLayers.set(key, marker)
+  }
+  const element = marker.getElement()
+  if (element.weatherHtml !== html) {
+    element.style.width = `${width}px`
+    element.style.height = `${height}px`
+    element.innerHTML = html
+    element.weatherHtml = html
+  }
+  element.weatherLat = lat
+  element.weatherLon = lon
+  element.weatherBearing = bearing
+  orientMarker(marker)
+}
 
-  } else if (currentLayer === 'press') {
-    if (f.outside?.pressure == null) { const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) } return }
-    if (large) {
-      const hpa    = Math.round(f.outside.pressure / 100)
-      const lblHtml = `<div style="font-size:10px;font-weight:700;color:#fff;
-        text-shadow:0 0 3px rgba(0,0,0,0.9),0 0 6px rgba(0,0,0,0.6);
-        white-space:nowrap;pointer-events:none;line-height:1">${hpa}</div>`
-      const lblIcon = L.divIcon({ html: lblHtml, className: 'wind-barb-icon', iconSize: [40, 14], iconAnchor: [20, 7] })
-      if (labelLayers.has(key)) { labelLayers.get(key).setIcon(lblIcon) }
-      else { labelLayers.set(key, L.marker([lat, lon], { icon: lblIcon, interactive: false }).addTo(barbGroup)) }
-    } else {
-      const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
-    }
+function renderMarker(key, lat, lon, f, layer = currentLayer, large = cellPixelSize() >= MIN_OVERLAY_PX) {
+  if (!f || !mapReady) { removeMarker(key); return }
+  setTooltipMarker(key, lat, lon, buildTooltip(lat, lon, f))
 
+  if (layer === 'wind' || layer === 'gust') {
+    const speed = layer === 'wind' ? f.wind?.speedTrue : f.wind?.gust
+    const direction = f.wind?.directionTrue
+    if (!Number.isFinite(speed) || !Number.isFinite(direction) || !large) { clearVisualMarker(key); return }
+    setVisualMarker(key, lat, lon, barbSVG(speed, direction), 56, 56, direction * 180 / Math.PI)
+  } else if (layer === 'temp' || layer === 'waterTemp') {
+    const temperature = layer === 'temp' ? f.outside?.temperature : f.water?.temperature
+    if (temperature == null || !large) { clearVisualMarker(key); return }
+    const tempC = temperature - 273.15
+    const label = (tempC >= 0 ? '+' : '') + tempC.toFixed(1) + '°'
+    setVisualMarker(key, lat, lon, `<div style="font-size:10px;font-weight:700;color:#fff;text-shadow:0 0 3px rgba(0,0,0,.9),0 0 6px rgba(0,0,0,.6);white-space:nowrap;pointer-events:none;line-height:1">${label}</div>`, 40, 14)
+  } else if (layer === 'press') {
+    if (f.outside?.pressure == null || !large) { clearVisualMarker(key); return }
+    setVisualMarker(key, lat, lon, `<div style="font-size:10px;font-weight:700;color:#fff;text-shadow:0 0 3px rgba(0,0,0,.9),0 0 6px rgba(0,0,0,.6);white-space:nowrap;pointer-events:none;line-height:1">${Math.round(f.outside.pressure / 100)}</div>`, 40, 14)
   } else {
-    // cloud / precip : canvas gère tout, pas de superposition
-    const l = labelLayers.get(key); if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
+    clearVisualMarker(key)
   }
 }
 
 function removeMarker(key) {
-  const m = barbLayers.get(key)
-  if (m) { barbGroup.removeLayer(m); barbLayers.delete(key) }
-  const l = labelLayers.get(key)
-  if (l) { barbGroup.removeLayer(l); labelLayers.delete(key) }
+  const marker = barbLayers.get(key)
+  if (marker) { marker.remove(); barbLayers.delete(key) }
+  clearVisualMarker(key)
+  markerSnapshots.delete(key)
 }
 function buildTooltip(lat, lon, f) {
   const d      = new Date(f.date)
@@ -1017,8 +1414,43 @@ function fmtRelative(iso) {
   return t.inN(Math.round(diff))
 }
 
-function selectTimeIndex(index) {
+const TIMELINE_PLAYBACK_INTERVAL = 1000
+
+function updateTimelinePlaybackButton() {
+  const button = document.getElementById('btn-time-play')
+  const playing = timelinePlaybackTimer != null
+  button.textContent = playing ? '❚❚' : '▶'
+  button.disabled = allTimes.length < 2
+  const label = playing ? t.pauseTimeline : t.playTimeline
+  button.setAttribute('aria-label', label)
+  button.title = label
+}
+
+function stopTimelinePlayback() {
+  if (timelinePlaybackTimer != null) clearInterval(timelinePlaybackTimer)
+  timelinePlaybackTimer = null
+  updateTimelinePlaybackButton()
+}
+
+function toggleTimelinePlayback() {
+  if (timelinePlaybackTimer != null) {
+    stopTimelinePlayback()
+    return
+  }
+  if (allTimes.length < 2) return
+  timelinePlaybackTimer = setInterval(() => {
+    if (allTimes.length < 2) { stopTimelinePlayback(); return }
+    // Give a slow renderer time to present its frame; never skip through dates
+    // while the map is moving or a previous frame is still being prepared.
+    if (mapIsMoving || pendingWeather || activeGridGeneration !== refreshGen) return
+    selectTimeIndex((curTimeIdx + 1) % allTimes.length, { fromPlayback: true })
+  }, TIMELINE_PLAYBACK_INTERVAL)
+  updateTimelinePlaybackButton()
+}
+
+function selectTimeIndex(index, { fromPlayback = false } = {}) {
   if (index < 0 || index >= allTimes.length || index === curTimeIdx) return
+  if (!fromPlayback) stopTimelinePlayback()
   curTimeIdx = index
   updateSliderUI()
   rerender()
@@ -1065,6 +1497,8 @@ function updateSliderUI() {
   const end    = document.getElementById('time-end')
 
   if (allTimes.length === 0) {
+    if (timelinePlaybackTimer != null) clearInterval(timelinePlaybackTimer)
+    timelinePlaybackTimer = null
     disp.textContent = '—'
     sec.textContent  = ''
     slider.disabled  = true
@@ -1072,6 +1506,7 @@ function updateSliderUI() {
     next.disabled = true
     start.textContent = '—'
     end.textContent = '—'
+    updateTimelinePlaybackButton()
     renderTimelineTicks()
     return
   }
@@ -1088,16 +1523,17 @@ function updateSliderUI() {
   end.textContent = fmtUtc(new Date(allTimes[allTimes.length - 1]))
   prev.disabled = curTimeIdx === 0
   next.disabled = curTimeIdx === allTimes.length - 1
+  updateTimelinePlaybackButton()
   renderTimelineTicks()
 }
 
 function ingestTimes(data) {
   const set = new Set(allTimes)
-  for (const f of data) if (f.date) set.add(f.date)
+  for (const f of data) if (f?.date && Number.isFinite(Date.parse(f.date))) set.add(f.date)
   if (set.size === allTimes.length) return false
   // Preserve the currently selected ISO string across re-sorts so that prepending
   // earlier timestamps doesn't silently move the slider to a different point in time.
-  const prevIso = curTimeIdx > 0 ? allTimes[curTimeIdx] : null
+  const prevIso = allTimes[curTimeIdx] ?? null
   allTimes = Array.from(set).sort()
   if (prevIso) {
     const newIdx = allTimes.indexOf(prevIso)
@@ -1117,9 +1553,7 @@ function ingestTimes(data) {
 // actually started and registered. Disabled plugins won't appear here.
 async function discoverSources(attempt = 1) {
   try {
-    const r = await fetch(`${SK}/signalk/v2/api/weather/_providers`)
-    if (!r.ok) throw new Error(r.status)
-    const providers = await r.json()   // { pluginId: { name, isDefault } }
+    const providers = await fetchWithTimeout(`${SK}/signalk/v2/api/weather/_providers`)
 
     const sel = document.getElementById('sel-source')
     sel.innerHTML = ''
@@ -1324,8 +1758,7 @@ async function setDefaultProvider(id) {
   const btn = document.getElementById('btn-set-default')
   btn.disabled = true
   try {
-    const r = await fetch(`${SK}/signalk/v2/api/weather/_providers/_default/${encodeURIComponent(id)}`, { method: 'POST' })
-    if (!r.ok) throw new Error(await r.text())
+    await fetchWithTimeout(`${SK}/signalk/v2/api/weather/_providers/_default/${encodeURIComponent(id)}`, { method: 'POST' }, r => r.text())
     defaultProviderId = id
     // Mettre à jour le ★ dans le sélecteur
     for (const opt of document.getElementById('sel-source').options) {
@@ -1355,67 +1788,80 @@ function refresh() {
 }
 
 async function doRefresh() {
+  debounce = null
+  if (!mapReady || mapIsMoving) return
+  try {
   const gen    = ++refreshGen   // capture generation at start
+  const source = document.getElementById('sel-source').value
+  // MapLibre can become ready before provider discovery completes. Never issue
+  // an implicit/default-provider request or commit an anonymous cache grid.
+  if (!source) return
+  cancelScheduledHeatmap()
+  cancelProgressiveWeatherRender()
+  cancelPendingWeather()
+  failedPoints.clear()
+  // The prior layer remains visible while the gesture is in progress. Once
+  // moveend has started this batch, progressively reveal the new viewport.
+  progressiveLastRender = 0
   const bounds  = map.getBounds()
-  const step    = autoStep()
-  const source  = document.getElementById('sel-source').value
+  // MapLibre emits moveend after both a pan and a zoom. Reusing the current
+  // step for panning guarantees that a same-scale move always samples the
+  // same forecast grid; zoomend is the only event that authorises a change.
+  const step    = currentStep == null || gridStepNeedsUpdate ? autoStep() : currentStep
+  gridStepNeedsUpdate = false
   const center  = map.getCenter()
 
   document.getElementById('grid-info').textContent = `auto (${step}°)`
-
-  // Si le pas a changé (zoom modifié), effacer toute la grille existante
-  // pour éviter que plusieurs densités coexistent à l'écran.
-  if (step !== currentStep) {
-    barbGroup.clearLayers()
-    barbLayers.clear()
-    labelLayers.clear()
-    currentStep = step
-  } else {
-    // Même pas : retirer seulement les markers hors de la vue
-    for (const [key] of barbLayers) {
-      const [klat, klon] = latLonFromKey(key)
-      if (!isNaN(klat) && !bounds.contains([klat, klon])) removeMarker(key)
-    }
-  }
 
   const pts = computeGrid(bounds, step)
   pts.sort((a, b) =>
     Math.hypot(a[0]-center.lat, a[1]-center.lng) - Math.hypot(b[0]-center.lat, b[1]-center.lng))
 
-  for (const [lat, lon] of pts) {
-    const key  = cacheKey(lat, lon, source)
+  // Prepare the next view atomically. The existing geographic layer followed
+  // the globe throughout the gesture; after release, its successor can appear
+  // progressively as valid points arrive.
+  currentStep = step
+  activeGrid = new Map(pts.map(([lat, lon]) => [cacheKey(lat, lon, source), { lat, lon }]))
+  activeGridGeneration = gen
+
+  let hasCachedPoints = false
+  for (const [key, { lat, lon }] of activeGrid) {
     const data = getCached(key)
-    if (data) { ingestTimes(data); renderMarker(key, lat, lon, data) }
+    if (data) {
+      hasCachedPoints = true
+      ingestTimes(data)
+    }
   }
 
-  // Afficher immédiatement les données déjà en cache avant de fetcher la suite.
-  renderHeatmap()
+  // Cached points are useful immediately; network responses join the same
+  // bounded progressive redraw below.
+  if (hasCachedPoints) scheduleProgressiveWeatherRender(gen)
 
-  const missing = pts.filter(([lat, lon]) => !getCached(cacheKey(lat, lon, source)))
+  const missing = Array.from(activeGrid, ([key, { lat, lon }]) => getCached(key) ? null : [lat, lon]).filter(Boolean)
   if (missing.length > 0) {
-    let lastRender = 0
     await fetchBatch(missing, source, ({ key, lat, lon, data }) => {
-      if (gen !== refreshGen) return   // une instance plus récente a pris le relais
+      if (gen !== refreshGen || activeGridGeneration !== gen || !activeGrid.has(key)) return
       ingestTimes(data)
-      renderMarker(key, lat, lon, data)
-      // Mise à jour progressive : ~3×/s. updateLayerButtons en premier pour basculer
-      // vers une couche disponible si la couche courante n'a pas encore de données.
-      const now = Date.now()
-      if (now - lastRender > 300) {
-        updateLayerButtons()
-        renderHeatmap()
-        lastRender = now
-      }
+      scheduleProgressiveWeatherRender(gen)
     })
+  } else {
+    showStatus(null)
   }
 
   // Données valides quelle que soit la génération : persister tout de suite
   lsFlush()
 
   if (gen !== refreshGen) return  // superseded pendant le fetch — ne pas écraser l'état
-  renderHeatmap()
+  // Complete the replacement atomically, superseding any provisional view that
+  // was revealed while this batch downloaded.
+  cancelProgressiveWeatherRender()
+  scheduleHeatmapRender({ delay: 0, generation: gen })
   updateLayerButtons()
   if (!document.getElementById('provider-info-dialog').hidden) renderProviderInfo()
+  } catch (error) {
+    console.error('Weather refresh failed', error)
+    showError(`Weather refresh failed: ${error.message ?? error}`)
+  }
 }
 
 // ── Layer availability ────────────────────────────────────────────────────────
@@ -1449,40 +1895,24 @@ function latLonFromKey(key) {
 }
 
 function rerender() {
-  for (const [key] of barbLayers) {
-    const [lat, lon] = latLonFromKey(key)
-    const data = getCached(key)
-    if (data) renderMarker(key, lat, lon, data)
-  }
-  renderHeatmap()
+  if (activeGridGeneration !== refreshGen) return
+  cancelPendingWeather()
+  scheduleHeatmapRender({ delay: 100 })
 }
 
 function clearHeatmap() {
-  if (heatOverlay) { map.removeLayer(heatOverlay); heatOverlay = null }
+  cancelScheduledHeatmap()
+  cancelPendingWeather()
+  if (displayedWeather) removeWeatherSource(displayedWeather.id)
+  displayedWeather = null
+  heatOverlay = false
 }
 
 function rerenderAll() {
-  // Re-rendu depuis le cache (utilisé après changement de couche)
-  clearHeatmap()
-  barbGroup.clearLayers()
-  barbLayers.clear()
-  labelLayers.clear()
-  if (!currentStep) currentStep = autoStep()
-  const provider = document.getElementById('sel-source').value
-  const bounds = map.getBounds()
-  const step = currentStep
-  const eps  = step * 0.01
-  for (const [key, entry] of memCache) {
-    if (!key.startsWith(provider + '|')) continue
-    if (Date.now() - entry.ts >= CACHE_TTL) continue
-    const [lat, lon] = latLonFromKey(key)
-    if (isNaN(lat) || !bounds.contains([lat, lon])) continue
-    // Tooltips et barbules uniquement au pas courant (le canvas couvre toutes résolutions)
-    if (Math.abs(lat - Math.round(lat / step) * step) > eps) continue
-    if (Math.abs(lon - Math.round(lon / step) * step) > eps) continue
-    renderMarker(key, lat, lon, entry.data)
-  }
-  renderHeatmap()
+  // Re-render the exact active request, never the global cross-view cache.
+  cancelPendingWeather()
+  if (activeGridGeneration === refreshGen && activeGrid.size > 0) rerender()
+  else refresh()
 }
 
 function updateLegend() {
@@ -1500,7 +1930,7 @@ function updateLegend() {
   } else if (currentLayer === 'precip') {
     el.innerHTML = `<b>${t.legendPrecip}</b>${t.precipDesc}`
   } else if (currentLayer === 'press') {
-    el.innerHTML = `<b>${t.legendPress}</b>${t.pressDesc}`
+    el.innerHTML = `<b>${t.legendPress}</b>${PRESSURE_GRADIENT_HTML}${t.pressDesc}`
   } else {
     el.innerHTML = `<b>${t.legendPrecip}</b>${t.precipDesc}`
   }
@@ -1522,45 +1952,59 @@ function showError(msg) {
 }
 
 function setControlsDisabled(disabled) {
+  if (disabled) stopTimelinePlayback()
   document.getElementById('slider-time').disabled = disabled
   document.getElementById('btn-time-prev').disabled = disabled || curTimeIdx === 0
   document.getElementById('btn-time-next').disabled = disabled || curTimeIdx === allTimes.length - 1
+  document.getElementById('btn-time-play').disabled = disabled || allTimes.length < 2
   document.getElementById('btn-provider-info').disabled = disabled
   document.querySelectorAll('.layer-btn').forEach(b => { b.disabled = disabled })
 }
 
 // ── Vessel ────────────────────────────────────────────────────────────────────
-function vesselIcon(hdgDeg) {
-  const svg = `<svg viewBox="0 0 20 30" width="20" height="30"
-    style="transform:rotate(${hdgDeg}deg);transform-origin:50% 50%;display:block;
+let vesselMarker = null
+let cameraMoved = false
+
+function vesselHtml(hdgDeg) {
+  return `<svg viewBox="0 0 20 30" width="20" height="30"
+    style="transform:rotate(var(--weather-rotation,${hdgDeg}deg));transform-origin:50% 50%;display:block;
     filter:drop-shadow(0 1px 3px rgba(0,0,0,0.6))">
     <polygon points="10,1 19,27 10,22 1,27"
       fill="#2196F3" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
   </svg>`
-  return L.divIcon({ html: svg, className: 'wind-barb-icon', iconSize: [20, 30], iconAnchor: [10, 15] })
 }
 
 async function centerOnVessel() {
   try {
-    const [rPos, rHdg] = await Promise.all([
-      fetch(`${SK}/signalk/v1/api/vessels/self/navigation/position`, { credentials: 'include' }),
-      fetch(`${SK}/signalk/v1/api/vessels/self/navigation/headingTrue`, { credentials: 'include' }),
+    const [pos, h] = await Promise.all([
+      fetchWithTimeout(`${SK}/signalk/v1/api/vessels/self/navigation/position`, { credentials: 'include', timeout: 5000 }),
+      fetchWithTimeout(`${SK}/signalk/v1/api/vessels/self/navigation/headingTrue`, { credentials: 'include', timeout: 5000 }).catch(() => null),
     ])
-    if (!rPos.ok) return
-    const pos = await rPos.json()
     const lat = pos.value?.latitude ?? pos.latitude
     const lon = pos.value?.longitude ?? pos.longitude
     if (lat == null || lon == null) return
 
     let hdgDeg = 0
-    if (rHdg.ok) {
-      const h = await rHdg.json()
+    if (h != null) {
       const hdgRad = typeof h?.value === 'number' ? h.value : (typeof h === 'number' ? h : null)
       if (hdgRad != null) hdgDeg = hdgRad * 180 / Math.PI
     }
 
-    map.setView([lat, lon], 7)
-    L.marker([lat, lon], { icon: vesselIcon(hdgDeg), interactive: false }).addTo(map)
+    if (!map) return
+    if (!vesselMarker) {
+      const element = document.createElement('div')
+      element.className = 'wind-barb-icon'
+      element.style.width = '20px'
+      element.style.height = '30px'
+      vesselMarker = new maplibregl.Marker({ element, anchor: 'center', opacityWhenCovered: 0 }).setLngLat([lon, lat]).addTo(map)
+    }
+    vesselMarker.getElement().innerHTML = vesselHtml(hdgDeg)
+    Object.assign(vesselMarker.getElement(), { weatherLat: lat, weatherLon: lon, weatherBearing: hdgDeg })
+    vesselMarker.setLngLat([lon, lat])
+    orientMarker(vesselMarker)
+    // Use a fixed geographical extent: a fixed zoom would load a much wider
+    // area on a large monitor than on a phone.
+    if (!cameraMoved) fitInitialWeatherView(lon, lat)
   } catch {}
 }
 
@@ -1579,20 +2023,17 @@ function setLegendVisible(visible) {
   updateSliderUI()
   // Persister les écritures en attente avant que l'onglet ne parte (localStorage = synchrone)
   window.addEventListener('pagehide', lsFlush)
-  await centerOnVessel()
+  window.addEventListener('pagehide', stopTimelinePlayback)
+  // Position is optional; a slow navigation endpoint must not hold the UI.
+  void centerOnVessel()
 
   updateLegend()
 
-  // The dock sits inside Leaflet's map element. Keep rapid taps on its controls
-  // from bubbling into Leaflet's double-click/touch zoom handlers.
+  // Prevent rapid double taps on controls from reaching browser zoom gestures.
   const dock = document.getElementById('panel')
-  L.DomEvent.disableClickPropagation(dock)
-  L.DomEvent.disableScrollPropagation(dock)
   dock.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation() })
 
   const providerDialog = document.getElementById('provider-info-dialog')
-  L.DomEvent.disableClickPropagation(providerDialog)
-  L.DomEvent.disableScrollPropagation(providerDialog)
   providerDialog.addEventListener('click', e => {
     if (e.target === providerDialog) setProviderInfoVisible(false)
   })
@@ -1603,7 +2044,7 @@ function setLegendVisible(visible) {
   document.getElementById('btn-provider-info').addEventListener('click', openProviderInfo)
   document.getElementById('btn-close-provider').addEventListener('click', () => setProviderInfoVisible(false))
 
-  if (localStorage.getItem('skwx_legend') === '0') setLegendVisible(false)
+  try { if (localStorage.getItem('skwx_legend') === '0') setLegendVisible(false) } catch {}
   document.getElementById('btn-toggle-legend').addEventListener('click', () => setLegendVisible(false))
   document.getElementById('btn-show-legend').addEventListener('click', () => setLegendVisible(true))
 
@@ -1613,19 +2054,41 @@ function setLegendVisible(visible) {
       document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'))
       btn.classList.add('active')
       currentLayer = btn.dataset.layer
-      currentStep  = null   // forcer un recalcul du pas au prochain refresh
       updateLegend()
       rerenderAll()
     })
   })
 
-  map.on('moveend', refresh)   // moveend se déclenche aussi après un zoom
+  if (map) {
+    map.on('movestart', () => {
+      mapIsMoving = true
+      cameraMoved = true
+      clearTimeout(debounce)
+      debounce = null
+      // Invalidate in-flight work, but keep the last complete layer visible.
+      // It remains geographically anchored by MapLibre while the globe moves.
+      refreshGen++
+      if (abortCtrl) abortCtrl.abort()
+      cancelScheduledHeatmap()
+      cancelProgressiveWeatherRender()
+      cancelPendingWeather()
+    })
+    map.on('move', orientWeatherMarkers)
+    map.on('moveend', () => {
+      mapIsMoving = false
+      refresh()
+    })
+    map.on('zoomend', () => {
+      gridStepNeedsUpdate = true
+    })
+  }
 
   document.getElementById('slider-time').addEventListener('input', e => {
     selectTimeIndex(parseInt(e.target.value, 10))
   })
   document.getElementById('btn-time-prev').addEventListener('click', () => selectTimeIndex(curTimeIdx - 1))
   document.getElementById('btn-time-next').addEventListener('click', () => selectTimeIndex(curTimeIdx + 1))
+  document.getElementById('btn-time-play').addEventListener('click', toggleTimelinePlayback)
 
   document.getElementById('sel-source').addEventListener('change', () => {
     // Invalider tout de suite le batch en cours : sans cela, pendant les 350 ms de
@@ -1633,6 +2096,7 @@ function setLegendVisible(visible) {
     // ré-ajouteraient des markers de l'ancien provider sur la carte vidée.
     refreshGen++
     if (abortCtrl) abortCtrl.abort()
+    cancelProgressiveWeatherRender()
     showStatus(null)   // le batch aborté ne nettoiera pas son compteur de chargement
     updateDefaultBtn()
     if (!providerDialog.hidden) renderProviderInfo()
@@ -1640,9 +2104,9 @@ function setLegendVisible(visible) {
     document.querySelectorAll('.layer-btn').forEach(btn => btn.style.display = '')
     // Vider markers et heatmap — les données sont provider-spécifiques
     clearHeatmap()
-    barbGroup.clearLayers()
-    barbLayers.clear()
-    labelLayers.clear()
+    clearWeatherMarkers()
+    activeGrid = new Map()
+    activeGridGeneration = refreshGen
     allTimes = []
     curTimeIdx = 0
     updateSliderUI()

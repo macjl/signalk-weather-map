@@ -5,7 +5,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
-const html = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8')
+const html = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8').replace(/\r\n/g, '\n')
 function fn(name) {
   const start = html.search(new RegExp(`(?:async )?function ${name}\\(`))
   assert.ok(start >= 0, name)

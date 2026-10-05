@@ -292,7 +292,7 @@ test('resuming a drag cancels the debounced refresh and the refresh itself refus
     map:{on:(type,fn)=>{handlers[type]=fn},getBounds:()=>bounds(0,1),getCenter:()=>({lat:0,lng:0})},
     setTimeout:fn=>{timers.set(++seq,fn);return seq},clearTimeout:id=>timers.delete(id),
     cancelScheduledHeatmap(){},cancelProgressiveWeatherRender(){},cancelPendingWeather(){},
-    orientWeatherMarkers(){},computeGrid:()=>[[0,0]],cacheKey:()=> 'p|0,0',getCached:()=>null,
+    orientWeatherMarkers(){},syncUrl(){},computeGrid:()=>[[0,0]],cacheKey:()=> 'p|0,0',getCached:()=>null,
     failedPoints:new Set(),fetchBatch:async()=>{requests++},showStatus(){},lsFlush(){},
     scheduleHeatmapRender(){},updateLayerButtons(){},console,showError:message=>assert.fail(message),
   }

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- URL deep links: `?lat=&lon=&zoom=&time=&layer=` pins the map to a shared place, instant and overlay. `time` (ISO 8601; naive timestamps are read as UTC) snaps to the nearest available forecast step, a deep-linked location replaces the vessel-centered initial framing while the vessel marker is still shown, and the address bar is kept in sync with the current view so it can be shared from the browser. Parameters that are out of range or unparseable are dropped rather than guessed
+
 ## [0.4.0] — 2026-09-17
 
 ### Added

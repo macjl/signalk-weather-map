@@ -1463,7 +1463,8 @@ function selectTimeIndex(index, { fromPlayback = false } = {}) {
   curTimeIdx = index
   updateSliderUI()
   rerender()
-  syncUrl()
+  // Playback stays out of the history; manual steps coalesce into one write.
+  if (!fromPlayback) syncUrlSoon()
 }
 
 function renderTimelineTicks() {
@@ -1976,8 +1977,19 @@ function setControlsDisabled(disabled) {
 // Keep the address bar in sync with the view so the current map can be shared
 // (or linked from the passage briefing): lat/lon/zoom follow the camera, time
 // the selected forecast step, layer the active overlay. Playback deliberately
-// does not sync — only stopping it does — to respect browser history-rate limits.
+// does not sync — only stopping it does — and slider drags coalesce into a
+// single trailing write, to respect browser history-rate limits.
+let syncUrlTimer = null
+
+function syncUrlSoon() {
+  clearTimeout(syncUrlTimer)
+  syncUrlTimer = setTimeout(() => { syncUrlTimer = null; syncUrl() }, 250)
+}
+
 function syncUrl() {
+  // An immediate write supersedes any debounced one still pending.
+  clearTimeout(syncUrlTimer)
+  syncUrlTimer = null
   if (!map) return
   try {
     const center = map.getCenter()
@@ -1985,7 +1997,9 @@ function syncUrl() {
       lat: center.lat,
       lon: center.lng,
       zoom: map.getZoom(),
-      time: allTimes[curTimeIdx] ?? null,
+      // While a requested ?time= is still waiting for forecast data, keep it
+      // in the URL instead of dropping it for the not-yet-known step.
+      time: deepLink.time ?? allTimes[curTimeIdx] ?? null,
       layer: currentLayer,
     })
     const url = new URL(window.location.href)
@@ -2006,6 +2020,10 @@ function applyDeepLinkTime() {
   }
   deepLink.time = null
   if (bestIdx !== curTimeIdx) selectTimeIndex(bestIdx)
+  // Repair the address bar even when the nearest step was already selected —
+  // a camera move during loading may have been kept alive only by the pending
+  // deep link (see syncUrl()).
+  syncUrl()
 }
 
 // ── Vessel ────────────────────────────────────────────────────────────────────

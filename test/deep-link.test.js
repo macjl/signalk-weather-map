@@ -71,6 +71,28 @@ test('drops invalid values instead of guessing', () => {
   assert.deepEqual(parseDeepLinkParams(''), {})
 })
 
+// parseFloat() stops at the first junk character; parameters must be complete
+// numbers or they are dropped (issue raised in review).
+test('rejects truncated numeric values', () => {
+  assert.deepEqual(parseDeepLinkParams('?lat=57junk&lon=10junk&zoom=7junk'), {})
+  assert.deepEqual(parseDeepLinkParams('?lat=57.3.4'), {})
+  assert.deepEqual(parseDeepLinkParams('?lat=+57&lon=-10'), { lat: 57, lon: -10 }, 'explicit signs stay valid')
+  assert.deepEqual(parseDeepLinkParams('?lat=0x39'), {}, 'hex literals are not decimal numbers')
+  assert.deepEqual(parseDeepLinkParams('?zoom=1e2'), {}, 'exponent notation is not accepted')
+})
+
+// Date.parse() silently rolls impossible calendar values forward instead of
+// rejecting them (Feb 30 → Mar 2, Feb 29 of a common year → Mar 1).
+test('rejects impossible calendar dates and times', () => {
+  assert.deepEqual(parseDeepLinkParams('?time=2026-02-30T12:00'), {})
+  assert.deepEqual(parseDeepLinkParams('?time=2026-02-29'), {}, '2026 is not a leap year')
+  assert.equal(parseDeepLinkParams('?time=2028-02-29T00:00').time, '2028-02-29T00:00:00.000Z', '2028 is a leap year')
+  assert.deepEqual(parseDeepLinkParams('?time=2026-13-01'), {})
+  assert.deepEqual(parseDeepLinkParams('?time=2026-10-06T25:00'), {})
+  assert.deepEqual(parseDeepLinkParams('?time=2026-10-06T12:60'), {})
+  assert.deepEqual(parseDeepLinkParams('?time=2026-10-06T12:00:61'), {})
+})
+
 test('builds a shareable query, omitting missing state', () => {
   assert.equal(
     buildDeepLinkQuery({ lat: 57.3, lon: 10.5, zoom: 7, time: '2026-10-06T12:00:00.000Z', layer: 'wind' }),
@@ -98,13 +120,19 @@ test('webapp loads deep-link.js and wires the parameters at boot', () => {
   assert.match(src, /deepLink\.layer/, 'shared layer pre-selected')
   assert.match(src, /applyDeepLinkTime\(\)/, 'deep-linked time applied after refresh')
   assert.match(src, /function syncUrl\(\)/)
+  assert.match(src, /function syncUrlSoon\(\)/, 'debounced writer for slider-driven syncs')
+  assert.match(src, /time: deepLink\.time \?\? allTimes\[curTimeIdx\] \?\? null/, 'pending requested time survives loading syncs')
+  assert.match(src, /if \(!fromPlayback\) syncUrlSoon\(\)/, 'playback steps must not write the URL')
 })
 
 test('syncUrl mirrors camera, time and layer into the query string', () => {
   let replaced = null
   const sandbox = {
     URL,
+    clearTimeout, setTimeout,
+    syncUrlTimer: null,
     map: { getCenter: () => ({ lat: 57.3, lng: 10.5 }), getZoom: () => 7 },
+    deepLink: { time: null },
     allTimes: ['2026-10-06T12:00:00Z'],
     curTimeIdx: 0,
     currentLayer: 'gust',
@@ -121,7 +149,10 @@ test('syncUrl mirrors camera, time and layer into the query string', () => {
 })
 
 test('syncUrl without a map or with a blocked history API is a no-op', () => {
-  const sandbox = { URL, map: null, allTimes: [], curTimeIdx: 0, currentLayer: 'wind', buildDeepLinkQuery }
+  const sandbox = {
+    URL, clearTimeout, setTimeout, syncUrlTimer: null,
+    map: null, deepLink: { time: null }, allTimes: [], curTimeIdx: 0, currentLayer: 'wind', buildDeepLinkQuery,
+  }
   vm.createContext(sandbox)
   vm.runInContext(fn('syncUrl'), sandbox)
   vm.runInContext('syncUrl()', sandbox)  // must not throw
@@ -134,6 +165,7 @@ test('deep-linked time snaps to the nearest forecast step, once', () => {
     allTimes: ['2026-10-06T09:00:00Z', '2026-10-06T12:00:00Z', '2026-10-06T15:00:00Z'],
     curTimeIdx: 0,
     selectTimeIndex: index => { sandbox.curTimeIdx = index },
+    syncUrl: () => {},
   }
   vm.createContext(sandbox)
   vm.runInContext(fn('applyDeepLinkTime'), sandbox)
@@ -156,4 +188,99 @@ test('deep-linked time stays pending until forecast steps exist', () => {
   vm.runInContext('applyDeepLinkTime()', sandbox)
   assert.equal(sandbox.curTimeIdx, 0)
   assert.equal(sandbox.deepLink.time, '2026-10-06T12:00:00.000Z', 'kept for the next refresh')
+})
+
+// Regression: a camera move while the forecast is still loading used to strip
+// ?time= from the URL (allTimes was still empty), and applyDeepLinkTime() then
+// skipped selectTimeIndex() because the nearest step was already selected — so
+// the URL was never repaired and sharing/reloading lost the selection.
+test('requested time survives camera syncs during loading, URL repaired after apply', () => {
+  const urls = []
+  const sandbox = {
+    URL,
+    clearTimeout, setTimeout, syncUrlTimer: null,
+    map: { getCenter: () => ({ lat: 57.3, lng: 10.5 }), getZoom: () => 7 },
+    deepLink: { time: '2026-10-06T12:00:00.000Z' },
+    allTimes: [],
+    curTimeIdx: 0,
+    currentLayer: 'wind',
+    buildDeepLinkQuery,
+    selectTimeIndex: index => { sandbox.curTimeIdx = index },
+    window: { location: { href: 'https://sk.local/plugins/signalk-weather-map/' } },
+    history: { replaceState: (state, title, url) => { urls.push(String(url)) } },
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(fn('syncUrl') + '\n' + fn('applyDeepLinkTime'), sandbox)
+
+  // The camera settles (moveend) while the forecast is still loading.
+  vm.runInContext('syncUrl()', sandbox)
+  assert.match(urls.at(-1), /time=2026-10-06T12:00:00Z/, 'pending requested time kept in the URL during loading')
+  assert.equal(sandbox.deepLink.time, '2026-10-06T12:00:00.000Z', 'request still pending')
+
+  // Forecast arrives; the nearest step happens to be the already-selected one.
+  sandbox.allTimes = ['2026-10-06T09:00:00Z', '2026-10-06T12:00:00Z', '2026-10-06T15:00:00Z']
+  vm.runInContext('applyDeepLinkTime()', sandbox)
+  assert.equal(sandbox.deepLink.time, null, 'request consumed')
+  assert.equal(sandbox.curTimeIdx, 1)
+  assert.match(urls.at(-1), /time=2026-10-06T12:00:00Z/, 'URL repaired even though the index did not move')
+})
+
+test('playback steps do not write browser history', () => {
+  let synced = 0
+  const sandbox = {
+    allTimes: ['2026-10-06T09:00:00Z', '2026-10-06T12:00:00Z'],
+    curTimeIdx: 0,
+    stopTimelinePlayback: () => {},
+    updateSliderUI: () => {},
+    rerender: () => {},
+    syncUrlSoon: () => { synced++ },
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(fn('selectTimeIndex'), sandbox)
+  vm.runInContext('selectTimeIndex(1, { fromPlayback: true })', sandbox)
+  assert.equal(sandbox.curTimeIdx, 1)
+  assert.equal(synced, 0, 'no URL write while playing')
+  vm.runInContext('selectTimeIndex(0)', sandbox)
+  assert.equal(synced, 1, 'manual step still schedules a sync')
+})
+
+test('rapid manual time changes coalesce into one trailing URL write', () => {
+  const urls = []
+  let pendingDelay = null
+  const sandbox = {
+    URL,
+    clearTimeout, syncUrlTimer: null,
+    setTimeout: (callback, delay) => { sandbox.pendingUrlWrite = callback; pendingDelay = delay; return delay },
+    clearTimeout: () => { sandbox.pendingUrlWrite = null },
+    map: { getCenter: () => ({ lat: 57.3, lng: 10.5 }), getZoom: () => 7 },
+    deepLink: { time: null },
+    allTimes: ['2026-10-06T09:00:00Z', '2026-10-06T12:00:00Z', '2026-10-06T15:00:00Z'],
+    curTimeIdx: 0,
+    currentLayer: 'wind',
+    buildDeepLinkQuery,
+    stopTimelinePlayback: () => {},
+    updateSliderUI: () => {},
+    rerender: () => {},
+    window: { location: { href: 'https://sk.local/plugins/signalk-weather-map/' } },
+    history: { replaceState: (state, title, url) => { urls.push(String(url)) } },
+  }
+  vm.createContext(sandbox)
+  vm.runInContext(fn('syncUrlSoon') + '\n' + fn('syncUrl') + '\n' + fn('selectTimeIndex'), sandbox)
+
+  // A slider drag firing several input events in quick succession.
+  vm.runInContext('selectTimeIndex(1)', sandbox)
+  vm.runInContext('selectTimeIndex(2)', sandbox)
+  assert.equal(urls.length, 0, 'no write per step while dragging')
+  assert.equal(pendingDelay, 250, 'trailing write is debounced')
+
+  // The debounce timer fires after the drag settles.
+  vm.runInContext('pendingUrlWrite()', sandbox)
+  assert.equal(urls.length, 1, 'exactly one write for the whole drag')
+  assert.match(urls[0], /time=2026-10-06T15:00:00Z/, 'the final step is what gets written')
+
+  // An immediate write (e.g. playback stopping) supersedes a pending one.
+  vm.runInContext('selectTimeIndex(1)', sandbox)
+  vm.runInContext('syncUrl()', sandbox)
+  assert.equal(urls.length, 2, 'immediate write goes through')
+  assert.equal(sandbox.pendingUrlWrite, null, 'stale debounced write discarded')
 })

@@ -18,34 +18,47 @@
 const DEEP_LINK_LAYERS = ['wind', 'gust', 'temp', 'waterTemp', 'cloud', 'precip', 'press']
 const DEEP_LINK_MAX_ZOOM = 18
 
-// Date-time without a timezone designator (a space separator is tolerated).
-const DEEP_LINK_NAIVE_TIME = /^\d{4}-\d{2}-\d{2}([T ]\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?)?$/
+// Complete decimal numbers only — parseFloat() would silently accept '57junk'
+// as 57, and Number() alone would let '0x39' or '1e2' through.
+const DEEP_LINK_NUMBER = /^[+-]?(\d+(\.\d*)?|\.\d+)$/
+
+// A full ISO 8601 date-time. Naive timestamps (no offset) are read as UTC; a
+// space is tolerated as the date-time separator, and before the offset too
+// (URLSearchParams decodes '+' as a space). Each component is captured so it
+// can be range-checked: Date.parse() rolls impossible values forward (Feb 30 →
+// Mar 2) instead of rejecting them.
+const DEEP_LINK_TIME = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?)?(Z|[ ]?[+-]?\d{2}:\d{2})?$/
+
+// Last day of a 1-based month, leap years included.
+function deepLinkDaysInMonth(year, month) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate()
+}
 
 function parseDeepLinkParams(search) {
   const params = new URLSearchParams(search)
   const out = {}
-  if (params.has('lat')) {
-    const lat = Number.parseFloat(params.get('lat'))
-    if (Number.isFinite(lat) && lat >= -90 && lat <= 90) out.lat = lat
+  const number = name => {
+    const raw = (params.get(name) ?? '').trim()
+    return DEEP_LINK_NUMBER.test(raw) ? Number(raw) : NaN
   }
-  if (params.has('lon')) {
-    const lon = Number.parseFloat(params.get('lon'))
-    if (Number.isFinite(lon)) out.lon = ((lon % 360) + 540) % 360 - 180
-  }
-  if (params.has('zoom')) {
-    const zoom = Number.parseFloat(params.get('zoom'))
-    if (Number.isFinite(zoom)) out.zoom = Math.min(DEEP_LINK_MAX_ZOOM, Math.max(0, zoom))
-  }
-  if (params.has('time')) {
-    let value = params.get('time').trim()
-    if (DEEP_LINK_NAIVE_TIME.test(value)) {
-      value = value.replace(' ', 'T') + 'Z'
-    } else {
-      // URLSearchParams decodes '+' as a space — restore it in timezone offsets.
-      value = value.replace(/ (\d{2}:\d{2})$/, '+$1')
+  const lat = number('lat')
+  if (Number.isFinite(lat) && lat >= -90 && lat <= 90) out.lat = lat
+  const lon = number('lon')
+  if (Number.isFinite(lon)) out.lon = ((lon % 360) + 540) % 360 - 180
+  const zoom = number('zoom')
+  if (Number.isFinite(zoom)) out.zoom = Math.min(DEEP_LINK_MAX_ZOOM, Math.max(0, zoom))
+  const match = DEEP_LINK_TIME.exec((params.get('time') ?? '').trim())
+  if (match) {
+    const [, y, mo, d, h = '00', mi = '00', s = '00', frac = '', off = 'Z'] = match
+    const offset = off.startsWith(' ') ? '+' + off.slice(1) : off
+    if (
+      mo >= '01' && mo <= '12' &&
+      d >= '01' && d <= String(deepLinkDaysInMonth(+y, +mo)) &&
+      +h < 24 && +mi < 60 && +s < 60
+    ) {
+      const ms = Date.parse(`${y}-${mo}-${d}T${h}:${mi}:${s}${frac}${offset}`)
+      if (Number.isFinite(ms)) out.time = new Date(ms).toISOString()
     }
-    const ms = Date.parse(value)
-    if (Number.isFinite(ms)) out.time = new Date(ms).toISOString()
   }
   if (params.has('layer') && DEEP_LINK_LAYERS.includes(params.get('layer'))) {
     out.layer = params.get('layer')

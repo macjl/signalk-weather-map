@@ -256,6 +256,7 @@
 <div id="status"></div>
 
 <script src="https://unpkg.com/maplibre-gl@5.12.0/dist/maplibre-gl.js" crossorigin=""></script>
+<script src="deep-link.js"></script>
 <script>
 'use strict'
 
@@ -348,6 +349,12 @@ const LS_PFX    = 'skwx2_'
 // (~500 par chargement, ~5 Mo) bloque le main thread et dépasse vite le quota.
 const LS_FLUSH_DELAY       = 1000  // ms — coalescer les rafales d'écriture
 const LS_FLUSH_MAX_PENDING = 100   // flush immédiat au-delà de N clés en attente
+
+// ── Deep link ─────────────────────────────────────────────────────────────────
+// ?lat=&lon=&zoom=&time=&layer= — épingle la vue à un lieu et un instant
+// partagés (lien entrant du passage briefing, du routeur…). `time` est consommé
+// une seule fois par applyDeepLinkTime(), après l'arrivée des premières données.
+const deepLink = parseDeepLinkParams(window.location.search)
 
 // ── State ─────────────────────────────────────────────────────────────────────
 const memCache    = new Map()
@@ -1427,9 +1434,11 @@ function updateTimelinePlaybackButton() {
 }
 
 function stopTimelinePlayback() {
-  if (timelinePlaybackTimer != null) clearInterval(timelinePlaybackTimer)
+  const wasPlaying = timelinePlaybackTimer != null
+  if (wasPlaying) clearInterval(timelinePlaybackTimer)
   timelinePlaybackTimer = null
   updateTimelinePlaybackButton()
+  if (wasPlaying) syncUrl()   // capture the step playback stopped on
 }
 
 function toggleTimelinePlayback() {
@@ -1454,6 +1463,8 @@ function selectTimeIndex(index, { fromPlayback = false } = {}) {
   curTimeIdx = index
   updateSliderUI()
   rerender()
+  // Playback stays out of the history; manual steps coalesce into one write.
+  if (!fromPlayback) syncUrlSoon()
 }
 
 function renderTimelineTicks() {
@@ -1852,11 +1863,16 @@ async function doRefresh() {
   lsFlush()
 
   if (gen !== refreshGen) return  // superseded pendant le fetch — ne pas écraser l'état
+  applyDeepLinkTime()   // ?time= — les étapes sont connues : sauter à la plus proche
   // Complete the replacement atomically, superseding any provisional view that
   // was revealed while this batch downloaded.
   cancelProgressiveWeatherRender()
   scheduleHeatmapRender({ delay: 0, generation: gen })
   updateLayerButtons()
+  // A camera move before the first data arrived may have written a URL without
+  // any time — with the steps now known, write the selected one. During
+  // playback the URL is only written when playback stops.
+  if (allTimes.length > 0 && timelinePlaybackTimer == null) syncUrl()
   if (!document.getElementById('provider-info-dialog').hidden) renderProviderInfo()
   } catch (error) {
     console.error('Weather refresh failed', error)
@@ -1961,6 +1977,59 @@ function setControlsDisabled(disabled) {
   document.querySelectorAll('.layer-btn').forEach(b => { b.disabled = disabled })
 }
 
+// ── URL deep links ────────────────────────────────────────────────────────────
+// Keep the address bar in sync with the view so the current map can be shared
+// (or linked from the passage briefing): lat/lon/zoom follow the camera, time
+// the selected forecast step, layer the active overlay. Playback deliberately
+// does not sync — only stopping it does — and slider drags coalesce into a
+// single trailing write, to respect browser history-rate limits.
+let syncUrlTimer = null
+
+function syncUrlSoon() {
+  clearTimeout(syncUrlTimer)
+  syncUrlTimer = setTimeout(() => { syncUrlTimer = null; syncUrl() }, 250)
+}
+
+function syncUrl() {
+  // An immediate write supersedes any debounced one still pending.
+  clearTimeout(syncUrlTimer)
+  syncUrlTimer = null
+  if (!map) return
+  try {
+    const center = map.getCenter()
+    const query = buildDeepLinkQuery({
+      lat: center.lat,
+      lon: center.lng,
+      zoom: map.getZoom(),
+      // While a requested ?time= is still waiting for forecast data, keep it
+      // in the URL instead of dropping it for the not-yet-known step.
+      time: deepLink.time ?? allTimes[curTimeIdx] ?? null,
+      layer: currentLayer,
+    })
+    const url = new URL(window.location.href)
+    url.search = query
+    history.replaceState(null, '', url)
+  } catch {}
+}
+
+// ?time= deep link: once the available steps are known, jump to the one nearest
+// the requested instant. Honoured once — afterwards the slider rules.
+function applyDeepLinkTime() {
+  if (deepLink.time == null || allTimes.length === 0) return
+  const target = Date.parse(deepLink.time)
+  let bestIdx = 0, bestDiff = Infinity
+  for (let i = 0; i < allTimes.length; i++) {
+    const diff = Math.abs(Date.parse(allTimes[i]) - target)
+    if (diff < bestDiff) { bestDiff = diff; bestIdx = i }
+  }
+  deepLink.time = null
+  if (bestIdx !== curTimeIdx) selectTimeIndex(bestIdx)
+  // Repair the address bar even when the nearest step was already selected —
+  // a camera move during loading may have been kept alive only by the pending
+  // deep link (see syncUrl()).
+  syncUrl()
+}
+
 // ── Vessel ────────────────────────────────────────────────────────────────────
 let vesselMarker = null
 let cameraMoved = false
@@ -2024,8 +2093,23 @@ function setLegendVisible(visible) {
   // Persister les écritures en attente avant que l'onglet ne parte (localStorage = synchrone)
   window.addEventListener('pagehide', lsFlush)
   window.addEventListener('pagehide', stopTimelinePlayback)
+  // ?lat=&lon= deep link: pin the camera to the shared location before the
+  // vessel fix arrives. The vessel marker is still added, but the view of the
+  // shared link must not be overridden by recentering on the vessel.
+  if (map && deepLink.lat != null && deepLink.lon != null) {
+    if (deepLink.zoom != null) map.jumpTo({ center: [deepLink.lon, deepLink.lat], zoom: deepLink.zoom })
+    else fitInitialWeatherView(deepLink.lon, deepLink.lat)
+    cameraMoved = true
+  }
   // Position is optional; a slow navigation endpoint must not hold the UI.
   void centerOnVessel()
+
+  // ?layer= deep link: pre-select the shared overlay. If the provider does not
+  // serve it, updateLayerButtons() falls back to the first available layer.
+  if (deepLink.layer) {
+    document.querySelectorAll('.layer-btn').forEach(b => b.classList.toggle('active', b.dataset.layer === deepLink.layer))
+    currentLayer = deepLink.layer
+  }
 
   updateLegend()
 
@@ -2056,6 +2140,7 @@ function setLegendVisible(visible) {
       currentLayer = btn.dataset.layer
       updateLegend()
       rerenderAll()
+      syncUrl()
     })
   })
 
@@ -2076,6 +2161,7 @@ function setLegendVisible(visible) {
     map.on('move', orientWeatherMarkers)
     map.on('moveend', () => {
       mapIsMoving = false
+      syncUrl()
       refresh()
     })
     map.on('zoomend', () => {

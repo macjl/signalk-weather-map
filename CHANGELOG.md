@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-10-07
+
 ### Added
 - URL deep links: `?lat=&lon=&zoom=&time=&layer=` pins the map to a shared place, instant and overlay. `time` (ISO 8601; naive timestamps are read as UTC) snaps to the nearest available forecast step, a deep-linked location replaces the vessel-centered initial framing while the vessel marker is still shown, and the address bar is kept in sync with the current view so it can be shared from the browser. Parameters must be complete numbers and possible calendar dates — anything out of range or unparseable is dropped rather than guessed. A requested time stays in the URL while its forecast data loads, playback steps stay out of the history (only stopping writes), and slider-driven writes are debounced
 

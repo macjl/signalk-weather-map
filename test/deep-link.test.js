@@ -57,6 +57,15 @@ test('reads naive timestamps as UTC', () => {
   assert.equal(parseDeepLinkParams('?time=2026-10-06T12:00:00+02:00').time, '2026-10-06T10:00:00.000Z')
 })
 
+// The fraction used to lose its leading dot during reconstruction, so even
+// .000Z — what Date.toISOString() produces — was silently rejected (issue
+// raised in review).
+test('accepts fractional seconds, with or without an offset', () => {
+  assert.equal(parseDeepLinkParams('?time=2026-10-06T12:00:00.000Z').time, '2026-10-06T12:00:00.000Z')
+  assert.equal(parseDeepLinkParams('?time=2026-10-06T12:00:00.500Z').time, '2026-10-06T12:00:00.500Z')
+  assert.equal(parseDeepLinkParams('?time=2026-10-06T12:00:00.500%2B02:00').time, '2026-10-06T10:00:00.500Z')
+})
+
 test('clamps zoom into the supported range', () => {
   assert.equal(parseDeepLinkParams('?zoom=-2').zoom, 0)
   assert.equal(parseDeepLinkParams('?zoom=42').zoom, 18)

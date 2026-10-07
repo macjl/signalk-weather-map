@@ -56,7 +56,10 @@ function parseDeepLinkParams(search) {
       d >= '01' && d <= String(deepLinkDaysInMonth(+y, +mo)) &&
       +h < 24 && +mi < 60 && +s < 60
     ) {
-      const ms = Date.parse(`${y}-${mo}-${d}T${h}:${mi}:${s}${frac}${offset}`)
+      // frac captures the digits only — the leading dot must be put back,
+      // or e.g. a link built from Date.toISOString() (.000Z) is rejected.
+      const fraction = frac ? `.${frac}` : ''
+      const ms = Date.parse(`${y}-${mo}-${d}T${h}:${mi}:${s}${fraction}${offset}`)
       if (Number.isFinite(ms)) out.time = new Date(ms).toISOString()
     }
   }

@@ -1869,6 +1869,10 @@ async function doRefresh() {
   cancelProgressiveWeatherRender()
   scheduleHeatmapRender({ delay: 0, generation: gen })
   updateLayerButtons()
+  // A camera move before the first data arrived may have written a URL without
+  // any time — with the steps now known, write the selected one. During
+  // playback the URL is only written when playback stops.
+  if (allTimes.length > 0 && timelinePlaybackTimer == null) syncUrl()
   if (!document.getElementById('provider-info-dialog').hidden) renderProviderInfo()
   } catch (error) {
     console.error('Weather refresh failed', error)

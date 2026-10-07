@@ -6,6 +6,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const html = fs.readFileSync(path.join(__dirname, '..', 'public/index.html'), 'utf8').replace(/\r\n/g, '\n')
+const { buildDeepLinkQuery } = require('../public/deep-link')
 function fn(name) {
   const start = html.search(new RegExp(`(?:async )?function ${name}\\(`))
   assert.ok(start >= 0, name)
@@ -306,4 +307,50 @@ test('resuming a drag cancels the debounced refresh and the refresh itself refus
   assert.equal(timers.size,0)
   await s.doRefresh()
   assert.equal(requests,0)
+})
+
+// Regression: with no ?time= parameter, a camera move before the first data
+// arrived wrote a URL without any time, and once ingestTimes() had selected a
+// forecast step nothing ever wrote it back — copying the address then lost the
+// displayed instant (issue raised in review).
+test('the first refresh writes the selected step into a time-less URL, but not during playback', async () => {
+  const urls = []
+  let writes = 0
+  const s = context({
+    mapReady:true, mapIsMoving:false, debounce:null, refreshGen:0, progressiveLastRender:0,
+    document:{getElementById:()=>({value:'p',hidden:true})},
+    map:{getBounds:()=>bounds(0,1),getCenter:()=>({lat:57,lng:10}),getZoom:()=>7},
+    currentStep:1, gridStepNeedsUpdate:false, autoStep:()=>1,
+    computeGrid:()=>[[0,0]], cacheKey:()=>'p|0,0',
+    getCached:()=>[{date:'2020-01-01T10:00:00Z'},{date:'2020-01-01T11:00:00Z'}],
+    failedPoints:new Set(), fetchBatch:async()=>{}, showStatus(){}, lsFlush(){},
+    cancelScheduledHeatmap(){}, cancelProgressiveWeatherRender(){}, cancelPendingWeather(){},
+    scheduleProgressiveWeatherRender(){}, scheduleHeatmapRender(){}, updateLayerButtons(){},
+    applyDeepLinkTime(){}, updateSliderUI(){}, showError:m=>assert.fail(m), console,
+    allTimes:[], curTimeIdx:0, currentLayer:'wind', deepLink:{},
+    timelinePlaybackTimer:null, syncUrlTimer:null, clearTimeout,
+    buildDeepLinkQuery, URL,
+    window:{location:{href:'https://sk.local/plugins/signalk-weather-map/'}},
+    history:{replaceState:(state,title,url)=>{urls.push(String(url));writes++}},
+  }, ['doRefresh','ingestTimes','syncUrl'])
+
+  // The camera settles (moveend) while the forecast is still loading: no time
+  // in the URL yet, since allTimes is still empty.
+  s.syncUrl()
+  assert.equal(writes,1)
+  assert.equal(new URL(urls[0]).searchParams.get('time'), null)
+
+  // doRefresh() populates the forecast steps (both in the past → first one
+  // selected) and must synchronise the URL.
+  await s.doRefresh()
+  assert.equal(writes,2)
+  assert.deepEqual([...s.allTimes],['2020-01-01T10:00:00Z','2020-01-01T11:00:00Z'])
+  assert.equal(new URL(urls[1]).searchParams.get('time'), s.allTimes[s.curTimeIdx].replace('.000Z','Z'))
+  assert.equal(new URL(urls[1]).searchParams.get('time'), '2020-01-01T10:00:00Z')
+
+  // While playback is running the URL is owned by playback — only stopping it
+  // may write history.
+  s.timelinePlaybackTimer = 123
+  await s.doRefresh()
+  assert.equal(writes,2,'no history write while playing')
 })
